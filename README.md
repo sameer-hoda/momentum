@@ -7,7 +7,7 @@ Turns your WhatsApp work groups into a mission-control board: a Home greeting wi
 ### After you click Deploy, do this
 
 1. **Set your password.** Railway asks for three values — type your own password into `APP_PASSWORD`, paste a [Gemini key](https://aistudio.google.com/) (free), and put your WhatsApp display name in `OWNER_NAME`.
-2. **Add storage.** After the first deploy: service → Volumes → New Volume → mount path `/data` → redeploy. This keeps your chats and login safe across restarts.
+2. **Storage is included.** The template ships a volume mounted at `/data` — this keeps your chats and login safe across restarts. (If you ever start from scratch manually: service → Volumes → New Volume → `/data` → redeploy.)
 3. **Scan the QR.** Open the deploy logs, find the QR code, scan it with WhatsApp → Settings → Linked devices.
 4. **Log in and wait.** Open your Railway domain, enter your password, and watch the loader: scan → syncing → analyzing → ready. That's it — your board is live.
 
