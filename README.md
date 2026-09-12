@@ -33,15 +33,15 @@ no noise.
 
 ### Board — keep statuses honest
 Drag threads between Blocked / In Progress / Completed. Overrides persist;
-reset anytime.
-
-![Board](assets/board.png)
+reset anytime. (Plus the full Command Center thread list with search, filters,
+and AI reply drafts you can send back to any group.)
 
 ## Architecture
 
 Built with [Archify](https://github.com/tt-a1i/archify) from the actual repo —
-open [`docs/architecture.html`](docs/architecture.html) for the interactive map
-(search, guided stories, dark/light).
+explore it live: **[interactive architecture map](https://sameer-hoda.github.io/momentum/architecture.html)**
+(search, guided stories, dark/light, export). A copy also lives in
+[`docs/architecture.html`](docs/architecture.html).
 
 ![Architecture](assets/architecture.png)
 
