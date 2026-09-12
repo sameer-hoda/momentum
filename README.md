@@ -25,6 +25,14 @@ prior 14.
 
 ![Command Center](assets/command.png)
 
+### Thread detail — read it, draft it, send it
+Every card opens the full thread: AI recap, WhatsApp-style chat history, people
+involved — and a **reply studio**. Pick an intent (nudge, escalate, status ask…),
+draft 4–6 replies in your voice with Gemini, edit, attach the task context, and
+hit **Send** — or copy it out. Dry-run until you flip `MOMENTUM_LIVE=1`.
+
+![Thread detail](assets/thread.png)
+
 ### Pulse — what happened
 3-hour bulletin windows, 7 day digests, and one weekly storyline — cross-group,
 no noise.

@@ -4,11 +4,20 @@ import datetime, json, random
 PEOPLE = ['Alex Morgan', 'Priya Nair', 'Rohan Mehta', 'Sara Iqbal',
           'Dev Patel', 'Neha Rao', 'Kiran Das', 'Anika Shah']
 THEMES = [
-    ('work', 'Work', '#3b82f6', ['planning', 'launches', 'reviews', 'hiring', 'ops']),
-    ('product', 'Product', '#8b5cf6', ['roadmap', 'bugs', 'design', 'analytics', 'mobile']),
-    ('growth', 'Growth', '#10b981', ['campaigns', 'onboarding', 'referrals', 'pricing', 'email']),
+    ('work', 'Work', ['planning', 'launches', 'reviews', 'hiring', 'ops']),
+    ('product', 'Product', ['roadmap', 'bugs', 'design', 'analytics', 'mobile']),
+    ('growth', 'Growth', ['campaigns', 'onboarding', 'referrals', 'pricing', 'email']),
+    ('personal', 'Personal', ['travel', 'finance', 'health', 'events', 'home']),
+    ('chats', 'Chats', ['general', 'announcements', 'intros', 'events', 'random']),
 ]
-STATES = ['needs_you', 'blocked', 'waiting_other', 'active', 'active', 'active', 'stale', 'done']
+# tasks per sub-index within a theme + their states (heat concentrated up front)
+SUB_PLAN = [
+    (3, ['needs_you', 'needs_you', 'blocked']),
+    (2, ['blocked', 'waiting_other']),
+    (2, ['waiting_other', 'active']),
+    (2, ['active', 'stale']),
+    (1, ['done']),
+]
 STATUS_OF = {'needs_you': 'running', 'blocked': 'blocked', 'waiting_other': 'running',
              'active': 'running', 'stale': 'running', 'done': 'completed'}
 TITLES = [
@@ -42,6 +51,16 @@ TITLES = [
     ('Triage the support backlog', 'Oldest ticket is 11 days old, needs an owner'),
     ('Refresh the status page copy', 'Incident wording approved by support'),
     ('Evaluate the new search vendor', 'POC results beat the baseline by 18%'),
+    ('Book flights for the team offsite', 'Three itineraries on the table, need a pick'),
+    ('Confirm the dinner reservation', 'Friday 8pm holds 12, need a final headcount'),
+    ('Split the grocery bill fairly', 'Receipt posted, two items disputed'),
+    ('Pick a weekend trek route', 'Two moderate trails shortlisted near town'),
+    ('Renew the apartment lease', 'Landlord offered 5% hike, counter with 3%'),
+    ('Schedule the dentist appointment', 'Two slots open next week'),
+    ('Organize the photo album', 'Beach trip folder needs sorting'),
+    ('Vote on the movie night pick', 'Comedy leads by two votes'),
+    ('Plan the anniversary surprise', 'Venue shortlisted, guest list pending'),
+    ('Welcome the new joiners', 'Intros posted, buddy pairs assigned'),
 ]
 MSGS = [
     'Draft is ready for review, please check the latest build.',
@@ -58,43 +77,43 @@ MSGS = [
 
 
 def write(path):
-    rng = random.Random(42)
+    rng = random.Random(7)
     now = datetime.datetime.now(datetime.timezone.utc)
-    tasks, groups_seen = [], set()
-    k = 0
-    for ti, (title, one) in enumerate(TITLES):
-        theme, tlabel, tcolor, subs = THEMES[ti % len(THEMES)]
-        sub = subs[ti % len(subs)]
-        state = STATES[ti % len(STATES)]
-        status = STATUS_OF[state]
-        gname = f'Demo Group {ti % 4 + 1}'
-        groups_seen.add(gname)
-        age_d = ti % 9
-        last = now - datetime.timedelta(days=age_d, hours=ti % 20)
-        senders = rng.sample(PEOPLE, 3)
-        msgs = [{'sender': senders[j % 3], 'body': MSGS[(ti + j) % len(MSGS)],
-                 'time': (last - datetime.timedelta(hours=j * 5)).isoformat()} for j in range(6)]
-        owner = 'You' if state == 'needs_you' else senders[0]
-        tasks.append({
-            'id': f'demo::{theme}::{k}', 'theme': theme, 'sub_theme': sub,
-            'topics': [sub], 'title': title, 'one_liner': one, 'kind': 'ask',
-            'status': status, 'owner': owner,
-            'requester': senders[1] if state != 'waiting_other' else 'You',
-            'due': '', 'needs_my_action': state == 'needs_you',
-            'waiting_on': senders[2] if state == 'waiting_other' else '',
-            'stale': state == 'stale', 'nudges': ti % 3,
-            'age': 'today' if age_d == 0 else f'{age_d}d',
-            'age_days': age_d, 'msg_count': 6, 'recap': one,
-            'people': senders, 'participants': senders,
-            'groups': [gname], 'group': gname, 'last_ts': last.isoformat(),
-            'messages': msgs, 'state': state, 'theme_label': tlabel,
-        })
-        k += 1
+    tasks, groups_seen, ti = [], set(), 0
+    for theme, tlabel, subs in THEMES:
+        for si, sub in enumerate(subs):
+            count, states = SUB_PLAN[si % len(SUB_PLAN)]
+            for j in range(count):
+                title, one = TITLES[ti % len(TITLES)]
+                state = states[j % len(states)]
+                gname = f'Demo Group {(ti % 6) + 1}'
+                groups_seen.add(gname)
+                age_d = (ti * 3) % 11
+                last = now - datetime.timedelta(days=age_d, hours=(ti * 5) % 20)
+                senders = rng.sample(PEOPLE, 3)
+                msgs = [{'sender': senders[(ti + m) % 3], 'body': MSGS[(ti + m) % len(MSGS)],
+                         'time': (last - datetime.timedelta(hours=m * 5)).isoformat()}
+                        for m in range(6)]
+                tasks.append({
+                    'id': f'demo::{theme}::{ti}', 'theme': theme, 'sub_theme': sub,
+                    'topics': [sub], 'title': title, 'one_liner': one, 'kind': 'ask',
+                    'status': STATUS_OF[state],
+                    'owner': 'You' if state == 'needs_you' else senders[0],
+                    'requester': senders[1] if state != 'waiting_other' else 'You',
+                    'due': '', 'needs_my_action': state == 'needs_you',
+                    'waiting_on': senders[2] if state == 'waiting_other' else '',
+                    'stale': state == 'stale', 'nudges': ti % 3,
+                    'age': 'today' if age_d == 0 else f'{age_d}d',
+                    'age_days': age_d, 'msg_count': 6, 'recap': one,
+                    'people': senders, 'participants': senders,
+                    'groups': [gname], 'group': gname, 'last_ts': last.isoformat(),
+                    'messages': msgs, 'state': state, 'theme_label': tlabel,
+                })
+                ti += 1
     atlas = []
-    for theme, tlabel, tcolor, subs in THEMES:
-        ts = [t for t in tasks if t['theme'] == theme]
+    for theme, tlabel, subs in THEMES:
         for sub in subs:
-            sts = [t for t in ts if t['sub_theme'] == sub]
+            sts = [t for t in tasks if t['theme'] == theme and t['sub_theme'] == sub]
             if not sts:
                 continue
             states = {s: 0 for s in ('needs_you', 'blocked', 'waiting_other', 'active', 'stale', 'done')}
@@ -119,7 +138,7 @@ def write(path):
     for h in (0, 3, 6, 9, 12, 15, 18, 21):
         start = (now - datetime.timedelta(hours=h)).replace(minute=0, second=0, microsecond=0)
         devs = [{'text': TITLES[(h + j) % len(TITLES)][1],
-                 'group': f'Demo Group {(h + j) % 4 + 1}',
+                 'group': f'Demo Group {(h + j) % 6 + 1}',
                  'theme': THEMES[(h + j) % len(THEMES)][0], 'msg_count': 6 - j % 4}
                 for j in range(3)]
         bulletins.append({'start': start.isoformat(), 'developments': devs})
@@ -127,14 +146,15 @@ def write(path):
         'exported_at': now.isoformat(), 'window_days': 30,
         'total_groups': len(groups_seen), 'total_messages': len(tasks) * 6,
         'total_tasks': len(tasks), 'tasks': tasks, 'group_jids': {},
-        'map': [{'theme': t[0], 'theme_label': t[1], 'tasks': sum(1 for x in tasks if x['theme'] == t[0]),
+        'map': [{'theme': t[0], 'theme_label': t[1],
+                 'tasks': sum(1 for x in tasks if x['theme'] == t[0]),
                  'msgs': sum(x['msg_count'] for x in tasks if x['theme'] == t[0]),
                  'attention': sum(a['attention'] for a in atlas if a['theme'] == t[0]),
                  'subs': [a for a in atlas if a['theme'] == t[0]]} for t in THEMES],
         'health_wall': {'days': days, 'score': 78, 'prev_score': 71,
                         'best': max(scored) if scored else 0},
         'bulletins': bulletins, 'days': days[-7:],
-        'week': {'intro': 'Demo week: launches on track, two threads need you.'},
+        'week': {'intro': 'Demo week: launches on track, a few threads need you.'},
     }
     with open(path, 'w') as f:
         json.dump(out, f, indent=1)
