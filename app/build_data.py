@@ -366,7 +366,10 @@ def heuristic_extract(t):
         'status': st, 'sameer_involved': bool(t['q_to_me'] or t['from_me']),
         'topic': 'general',
     }
-    return {'items': [normalize_item(item)]}
+    norm = normalize_item(item)
+    if not norm:
+        return None
+    return {'items': [norm]}
 
 # ---------------------------------------------------------------------------
 # 4. MERGE — embedding dedupe within theme -> MECE tasks
@@ -1118,6 +1121,8 @@ def main():
     elif todo:  # no API key -> heuristic
         for t in todo:
             data = heuristic_extract(t)
+            if not data:
+                continue
             extracted[t['key']] = data
             cache[t['key']] = {'end': t['end'].isoformat(), 'items': data['items']}
 
