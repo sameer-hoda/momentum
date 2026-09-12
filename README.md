@@ -2,7 +2,7 @@
 
 Turns your WhatsApp work groups into a mission-control board: a Home greeting with your top-10 threads, an Atlas treemap of every theme, Pulse digests, and a Kanban board — with AI reply drafts you can send back to any group.
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template?template=https://github.com/sameer-hoda/momentum&envs=APP_PASSWORD,GEMINI_API_KEY,OWNER_NAME)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/momentum)
 
 ### After you click Deploy, do this
 
