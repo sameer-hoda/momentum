@@ -68,7 +68,7 @@ button.go:disabled{opacity:.6;cursor:wait;transform:none;}
 <div class="card">
   <div class="logo">M</div>
   <h1>Momentum</h1>
-  <div class="sub">mission control · sign in</div>
+  <div class="sub" id="mode-sub">mission control · sign in</div>
   <div class="err" id="err">Wrong email or password — try again.</div>
   <form id="f" autocomplete="on">
     <div class="field">
@@ -77,28 +77,58 @@ button.go:disabled{opacity:.6;cursor:wait;transform:none;}
     </div>
     <div class="field">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-      <input id="pw" type="password" placeholder="Password" autocomplete="current-password" required>
-      <button type="button" class="eye" onclick="togglePw()" aria-label="Show password"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      <input id="pw" type="password" placeholder="Password" autocomplete="new-password" required>
+      <button type="button" class="eye" onclick="togglePw('pw')" aria-label="Show password"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+    </div>
+    <div class="field hidden" id="confirm-wrap" style="display:none">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      <input id="pw2" type="password" placeholder="Repeat password" autocomplete="new-password">
+      <button type="button" class="eye" onclick="togglePw('pw2')" aria-label="Show password"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
     </div>
     <button class="go" id="go" type="submit">Sign in →</button>
   </form>
-  <div class="hint">First run? Use the <code>APP_EMAIL</code> + <code>APP_PASSWORD</code><br>you set in Railway variables.</div>
+  <div class="hint" id="hint">First run? Use the <code>APP_EMAIL</code> + <code>APP_PASSWORD</code><br>you set in Railway variables.</div>
 </div>
 <script>
 if(localStorage.getItem('momentum_theme')==='light'){document.documentElement.classList.remove('dark');document.documentElement.classList.add('light');}
 function toggleTheme(){const h=document.documentElement;const light=h.classList.contains('light');h.classList.toggle('light',!light);h.classList.toggle('dark',light);localStorage.setItem('momentum_theme',light?'dark':'light');}
-function togglePw(){const i=document.getElementById('pw');i.type=i.type==='password'?'text':'password';}
+function togglePw(id){const i=document.getElementById(id||'pw');i.type=i.type==='password'?'text':'password';}
+let MODE='login';
+async function initMode(){
+  try{
+    const s=await fetch('/api/auth-state').then(r=>r.json());
+    MODE=(s&&s.mode)==='setup'?'setup':'login';
+  }catch(e){MODE='login';}
+  if(MODE==='setup'){
+    document.getElementById('mode-sub').textContent='mission control · create your sign-in';
+    document.getElementById('confirm-wrap').style.display='block';
+    document.getElementById('pw2').required=true;
+    document.getElementById('pw').placeholder='Choose a password (10+ characters)';
+    document.getElementById('go').textContent='Create sign-in →';
+    document.getElementById('hint').innerHTML='First run — this creates the only login<br>for this instance. Store it somewhere safe.';
+  }
+}
+initMode();
 document.getElementById('f').addEventListener('submit',async e=>{
   e.preventDefault();
-  const btn=document.getElementById('go');btn.disabled=true;btn.textContent='Signing in…';
-  document.getElementById('err').classList.remove('on');
+  const btn=document.getElementById('go');btn.disabled=true;
+  btn.textContent=MODE==='setup'?'Creating…':'Signing in…';
+  const err=document.getElementById('err');err.classList.remove('on');
+  const fail=msg=>{err.textContent=msg;err.classList.remove('on');void err.offsetWidth;err.classList.add('on');
+    btn.disabled=false;btn.textContent=MODE==='setup'?'Create sign-in →':'Sign in →';};
   try{
-    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({email:document.getElementById('email').value.trim(),password:document.getElementById('pw').value})});
-    if(!r.ok) throw 0;
+    const body={email:document.getElementById('email').value.trim(),password:document.getElementById('pw').value};
+    let url='/api/login';
+    if(MODE==='setup'){
+      const c=document.getElementById('pw2').value;
+      if(body.password!==c) return fail("Passwords don't match — type them again.");
+      body.confirm=c; url='/api/setup';
+    }
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(d.error||'Something went wrong');
     location.href='/';
-  }catch(_){const er=document.getElementById('err');er.classList.remove('on');void er.offsetWidth;er.classList.add('on');}
-  btn.disabled=false;btn.textContent='Sign in →';
+  }catch(ex){fail(ex.message||'Wrong email or password — try again.');}
 });
 </script>
 </body>

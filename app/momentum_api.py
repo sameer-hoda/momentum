@@ -46,6 +46,43 @@ SESSION_TTL = 30 * 24 * 3600
 _sessions = {}  # token -> expiry epoch
 _sessions_lock = threading.Lock()
 
+AUTH_FILE = os.path.join(STORE_DIR, 'auth.json')
+
+
+def _load_local_auth():
+    try:
+        with open(AUTH_FILE) as f:
+            d = json.load(f)
+        if d.get('email') and d.get('salt') and d.get('hash'):
+            return d
+    except Exception:
+        pass
+    return None
+
+
+def _password_required():
+    """True when some credential exists (env var or local setup file)."""
+    return bool(APP_PASSWORD) or _load_local_auth() is not None
+
+
+def _hash_password(password, salt=None):
+    import hashlib
+    if salt is None:
+        salt = secrets.token_bytes(16)
+    else:
+        salt = bytes.fromhex(salt)
+    dk = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1, dklen=64)
+    return salt.hex(), dk.hex()
+
+
+def _verify_password(password, salt_hex, hash_hex):
+    import hashlib, hmac
+    try:
+        _, dk = _hash_password(password, salt_hex)
+        return hmac.compare_digest(dk, hash_hex)
+    except Exception:
+        return False
+
 
 def _new_session():
     tok = secrets.token_urlsafe(32)
@@ -86,7 +123,7 @@ def _check_email(given):
 
 
 def authed(handler):
-    if not APP_PASSWORD:
+    if not _password_required():
         return True
     if _valid_session(handler):
         return True
@@ -115,11 +152,49 @@ Return STRICT JSON only: [{"label": "...", "tone": "...", "text": "..."}] with 4
 
 
 def do_login(payload):
-    if not APP_PASSWORD:
-        return {'error': 'no APP_PASSWORD is set on this instance'}
-    if _check_email(payload.get('email')) and _check_password(payload.get('password')):
+    email = (payload.get('email') or '').strip().lower()
+    password = payload.get('password') or ''
+    if APP_PASSWORD:
+        if _check_email(payload.get('email')) and _check_password(password):
+            return {'token': _new_session()}
+        return {'error': 'wrong email or password'}
+    local = _load_local_auth()
+    if not local:
+        return {'error': 'no sign-in set up yet — create one first'}
+    if email == local['email'] and _verify_password(password, local['salt'], local['hash']):
         return {'token': _new_session()}
     return {'error': 'wrong email or password'}
+
+
+def do_setup(payload):
+    """First-run credentials creation. Only works when nothing is set yet."""
+    if _password_required():
+        return {'error': 'sign-in already exists'}
+    email = (payload.get('email') or '').strip().lower()
+    pw = payload.get('password') or ''
+    confirm = payload.get('confirm') or ''
+    if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+        return {'error': 'enter a valid email address'}
+    if len(pw) < 10:
+        return {'error': 'password needs at least 10 characters'}
+    if pw != confirm:
+        return {'error': "passwords don't match — type them again"}
+    salt, h = _hash_password(pw)
+    try:
+        os.makedirs(STORE_DIR, exist_ok=True)
+        fd = os.open(AUTH_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, 'w') as f:
+            json.dump({'email': email, 'salt': salt, 'hash': h,
+                       'created': datetime.datetime.now(datetime.timezone.utc).isoformat()}, f)
+    except Exception as e:
+        return {'error': f'could not save credentials ({e})'}
+    return {'token': _new_session()}
+
+
+def auth_state():
+    if _password_required():
+        return {'mode': 'login'}
+    return {'mode': 'setup'}
 
 
 LOGIN_PAGE = os.path.join(FRONTEND_DIR, 'login.html')
@@ -480,7 +555,9 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/login':
             return self._serve_login()
-        if self.path == '/' and APP_PASSWORD and not authed(self):
+        if self.path == '/api/auth-state':
+            return self._json(auth_state())
+        if self.path == '/' and _password_required() and not authed(self):
             return self._serve_login()
         if not self._guard():
             return
@@ -491,6 +568,14 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
+        if self.path == '/api/setup':
+            try:
+                out = do_setup(self._post_body())
+            except json.JSONDecodeError:
+                return self._json({'error': 'bad JSON'}, 400)
+            if 'token' in out:
+                return self._set_session(out['token'])
+            return self._json(out, 400)
         if self.path == '/api/login':
             try:
                 out = do_login(self._post_body())
@@ -529,7 +614,7 @@ if __name__ == '__main__':
      UI + API   ->  :{PORT}/
      Bridge     ->  {BRIDGE_URL}  ({'reachable' if bridge_ok() else 'offline'})
      Store      ->  {STORE_DIR}
-     Auth       ->  {'password protected' if APP_PASSWORD else 'OPEN (set APP_PASSWORD!)'}
+     Auth       ->  {'first-run setup (no credentials yet)' if not _password_required() else ('env password' if APP_PASSWORD else 'local setup file')}
      Mode       ->  {'LIVE — messages will be delivered' if LIVE else 'DRY-RUN — sends logged only (set MOMENTUM_LIVE=1 to deliver)'}
 """, flush=True)
     srv.serve_forever()
