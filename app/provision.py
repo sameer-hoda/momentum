@@ -124,17 +124,17 @@ def main():
     n = msg_count()
     stable = 0
     last = -1
-    save('awaiting_qr', 'scan the QR code in the deploy logs with WhatsApp → Linked devices', n)
+    save('awaiting_qr', 'scan the QR code above with WhatsApp → Linked devices', n)
     qr_announced = False
     while True:
         n = msg_count()
         paired = n > 0 or log_hint_paired()
         if not paired:
             if not qr_announced or int(time.time() - t0) % 120 == 0:
-                save('awaiting_qr', 'scan the QR code in the deploy logs with WhatsApp → Linked devices', n)
+                save('awaiting_qr', 'scan the QR code above with WhatsApp → Linked devices', n)
                 qr_announced = True
             if time.time() - t0 > 1800:
-                save('error', 'no pairing after 30 min — rescan the QR in deploy logs')
+                save('error', 'no pairing after 30 min — a fresh QR is shown above')
                 return
             time.sleep(10)
             continue
