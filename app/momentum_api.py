@@ -578,7 +578,12 @@ class Handler(SimpleHTTPRequestHandler):
             return self._serve_login()
         if self.path == '/api/auth-state':
             return self._json(auth_state())
-        if self.path == '/' and _password_required() and not authed(self):
+        if not _password_required():
+            # First run: the ONLY thing available is the setup page.
+            if self.path.startswith('/api/'):
+                return self._json({'error': 'no sign-in yet — create one first'}, 403)
+            return self._serve_login()
+        if self.path == '/' and not authed(self):
             return self._serve_login()
         if not self._guard():
             return
@@ -600,6 +605,8 @@ class Handler(SimpleHTTPRequestHandler):
             if 'token' in out:
                 return self._set_session(out['token'])
             return self._json(out, 400)
+        if not _password_required():
+            return self._json({'error': 'no sign-in yet — create one first'}, 403)
         if self.path == '/api/login':
             try:
                 out = do_login(self._post_body())
