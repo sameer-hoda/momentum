@@ -14,7 +14,7 @@ if [ ! -w "$STORE" ]; then
 fi
 
 echo "-> starting WhatsApp bridge (QR will print below on first run)..."
-./bridge/wabridge > "${BRIDGE_LOG:-/data/bridge.log}" 2>&1 &
+./bridge/wabridge 2>&1 | tee "${BRIDGE_LOG:-/data/bridge.log}" &
 echo "$!" > /tmp/bridge.pid
 
 if [ "${DEMO_MODE:-0}" = "1" ]; then
