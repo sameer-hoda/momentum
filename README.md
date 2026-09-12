@@ -66,16 +66,16 @@ Your phone ──QR pair──▶ Go bridge (whatsmeow) ──▶ SQLite (/data/
 One Railway service, one container, two processes. Chat history persists on a
 Volume so redeploys and restarts never lose the session.
 
-## Deploy (5 minutes)
+## Deploy (5 minutes, your own password)
 
-1. Click **Deploy on Railway** above (or: New Project → Deploy from GitHub → this repo).
-2. When prompted, set variables:
-   - `APP_PASSWORD` — password for the whole UI (required).
-   - `GEMINI_API_KEY` — [Google AI Studio](https://aistudio.google.com/) key (recommended; board works heuristically without it).
-   - `OWNER_NAME` — your WhatsApp display name, e.g. `Alex Morgan` (powers "needs you" ranking).
-3. Add a **Volume**, mount path `/data`. (Without it, sessions and history vanish on every redeploy.)
-4. Open the deploy logs, find the QR code, scan with WhatsApp → Settings → **Linked devices**.
-5. Open the Railway domain, log in with `APP_PASSWORD`. The boot loader walks through
+1. Click **Deploy on Railway** above (or: Railway → New Project → Deploy from GitHub → this repo).
+2. Railway shows a **variables screen — this is where you set your own password**:
+   - `APP_PASSWORD` — **your password** for the whole UI. Pick anything strong; you type it into the browser on first visit. Nobody else sets it — not me, not Railway.
+   - `GEMINI_API_KEY` — [Google AI Studio](https://aistudio.google.com/) key (recommended; the board works heuristically without it, AI drafts need it).
+   - `OWNER_NAME` — your WhatsApp display name, e.g. `Alex Morgan` (powers "needs you" ranking and reply voice).
+3. After first deploy, add a **Volume** (service → Volumes → New Volume), mount path `/data`, and **redeploy once**. Without it, sessions and history vanish on every restart.
+4. Open the deploy **logs**, find the QR code, scan with WhatsApp → Settings → **Linked devices**.
+5. Open the Railway domain, log in with **your `APP_PASSWORD`**. The boot loader walks through
    **bridge → scan → syncing → analyzing → ready** with live counts. Done.
 
 To re-run analysis later: `POST /api/rebuild` (or the rebuild button, if your UI build has one).
