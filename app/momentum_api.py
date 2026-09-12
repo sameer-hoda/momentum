@@ -39,7 +39,67 @@ LIVE = os.environ.get('MOMENTUM_LIVE', '0') == '1'
 DEMO = os.environ.get('DEMO_MODE', '0') == '1'
 BRIDGE_URL = os.environ.get('WA_BRIDGE_URL', 'http://localhost:8080').rstrip('/')
 APP_PASSWORD = os.environ.get('APP_PASSWORD', '')
+APP_EMAIL = os.environ.get('APP_EMAIL', '').strip().lower()
 OWNER_NAME = os.environ.get('OWNER_NAME', '')
+
+SESSION_TTL = 30 * 24 * 3600
+_sessions = {}  # token -> expiry epoch
+_sessions_lock = threading.Lock()
+
+
+def _new_session():
+    tok = secrets.token_urlsafe(32)
+    with _sessions_lock:
+        _sessions[tok] = time.time() + SESSION_TTL
+    return tok
+
+
+def _valid_session(handler):
+    cookies = handler.headers.get('Cookie') or ''
+    m = re.search(r'momentum_session=([A-Za-z0-9_\-]+)', cookies)
+    if not m:
+        return False
+    with _sessions_lock:
+        exp = _sessions.get(m.group(1), 0)
+        if exp < time.time():
+            _sessions.pop(m.group(1), None)
+            return False
+        return True
+
+
+def _drop_session(handler):
+    cookies = handler.headers.get('Cookie') or ''
+    m = re.search(r'momentum_session=([A-Za-z0-9_\-]+)', cookies)
+    if m:
+        with _sessions_lock:
+            _sessions.pop(m.group(1), None)
+
+
+def _check_password(given):
+    return bool(APP_PASSWORD) and secrets.compare_digest(given or '', APP_PASSWORD)
+
+
+def _check_email(given):
+    if not APP_EMAIL:
+        return True  # email collected for identity; password is the gate
+    return (given or '').strip().lower() == APP_EMAIL
+
+
+def authed(handler):
+    if not APP_PASSWORD:
+        return True
+    if _valid_session(handler):
+        return True
+    auth = handler.headers.get('Authorization') or ''
+    if not auth.startswith('Basic '):
+        return False
+    import base64
+    try:
+        decoded = base64.b64decode(auth[6:]).decode()
+    except Exception:
+        return False
+    _, _, given = decoded.partition(':')
+    return _check_password(given)
 
 _lock = threading.Lock()
 _data_cache = {'ts': 0, 'data': None}
@@ -54,19 +114,15 @@ Return STRICT JSON only: [{"label": "...", "tone": "...", "text": "..."}] with 4
 "label" is 2-4 words naming the intent. "tone" is one word like direct/diplomatic/firm/warm/urgent."""
 
 
-def authed(handler):
+def do_login(payload):
     if not APP_PASSWORD:
-        return True
-    auth = handler.headers.get('Authorization') or ''
-    if not auth.startswith('Basic '):
-        return False
-    import base64
-    try:
-        decoded = base64.b64decode(auth[6:]).decode()
-    except Exception:
-        return False
-    _, _, given = decoded.partition(':')
-    return secrets.compare_digest(given, APP_PASSWORD)
+        return {'error': 'no APP_PASSWORD is set on this instance'}
+    if _check_email(payload.get('email')) and _check_password(payload.get('password')):
+        return {'token': _new_session()}
+    return {'error': 'wrong email or password'}
+
+
+LOGIN_PAGE = os.path.join(FRONTEND_DIR, 'login.html')
 
 
 def load_data():
@@ -394,7 +450,38 @@ class Handler(SimpleHTTPRequestHandler):
             pass
         return False
 
+    def _serve_login(self):
+        try:
+            body = open(LOGIN_PAGE, 'rb').read()
+        except Exception:
+            body = b'<h1>login.html missing</h1>'
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
+    def _set_session(self, token):
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Set-Cookie',
+                         f'momentum_session={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age={SESSION_TTL}')
+        body = b'{"ok":true}'
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
     def do_GET(self):
+        if self.path == '/login':
+            return self._serve_login()
+        if self.path == '/' and APP_PASSWORD and not authed(self):
+            return self._serve_login()
         if not self._guard():
             return
         if self.path == '/api/health' or self.path == '/api/status':
@@ -404,6 +491,17 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
+        if self.path == '/api/login':
+            try:
+                out = do_login(self._post_body())
+            except json.JSONDecodeError:
+                return self._json({'error': 'bad JSON'}, 400)
+            if 'token' in out:
+                return self._set_session(out['token'])
+            return self._json(out, 401)
+        if self.path == '/api/logout':
+            _drop_session(self)
+            return self._json({'ok': True})
         if not self._guard():
             return
         try:

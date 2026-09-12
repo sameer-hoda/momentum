@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Momentum — Sign in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#090a0f; --bg-elev:#0f1117; --bg-sunken:#07080c;
+  --border:#202534; --border-soft:#181c28;
+  --text-1:#f8fafc; --text-2:#c3cad6; --text-3:#94a3b8; --text-4:#64748b;
+  --accent:#8b5cf6; --danger:#ef4444;
+  --font-ui:'Plus Jakarta Sans',-apple-system,sans-serif; --font-mono:'JetBrains Mono',monospace;
+  --font-serif:'Newsreader',Georgia,serif;
+  --ease-spring:cubic-bezier(.22,1.1,.36,1);
+  --card-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 4px 16px -4px rgba(0,0,0,.45);
+}
+html.light{
+  --bg:#f4f4f2; --bg-elev:#ffffff; --bg-sunken:#ececea;
+  --border:#e3e1dc; --border-soft:#eceae5;
+  --text-1:#1c1917; --text-2:#57534e; --text-3:#8a8580; --text-4:#b3aea7;
+  --card-shadow:0 1px 2px rgba(28,25,23,.04),0 4px 16px -4px rgba(28,25,23,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-ui);background:var(--bg);color:var(--text-1);min-height:100vh;
+  display:flex;align-items:center;justify-content:center;padding:20px;
+  background-image:radial-gradient(600px 300px at 20% 0%,rgba(139,92,246,.10),transparent),
+                   radial-gradient(500px 260px at 85% 100%,rgba(59,130,246,.08),transparent);}
+.card{background:var(--bg-elev);border:1px solid var(--border);border-radius:20px;
+  box-shadow:var(--card-shadow);width:min(400px,94vw);padding:34px 30px 28px;text-align:center;
+  animation:rise .6s var(--ease-spring);}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.logo{width:46px;height:46px;border-radius:14px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:20px;color:#fff;background:linear-gradient(135deg,#8b5cf6,#3b82f6);
+  box-shadow:0 6px 18px -6px rgba(139,92,246,.6);}
+h1{font-family:var(--font-serif);font-style:italic;font-weight:400;font-size:27px;letter-spacing:-.01em;}
+.sub{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-4);margin:6px 0 24px;font-weight:650;}
+.field{position:relative;margin-bottom:12px;}
+.field svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text-4);}
+.field input{width:100%;font-family:var(--font-ui);font-size:13.5px;color:var(--text-1);
+  background:var(--bg-sunken);border:1px solid var(--border-soft);border-radius:12px;
+  padding:12px 40px 12px 38px;outline:none;transition:border-color .2s, box-shadow .2s;}
+.field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(139,92,246,.18);}
+.field input::placeholder{color:var(--text-4);}
+.eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:none;
+  color:var(--text-4);cursor:pointer;padding:6px;border-radius:8px;}
+.eye:hover{color:var(--text-1);}
+button.go{width:100%;margin-top:6px;border:none;cursor:pointer;font-family:var(--font-ui);
+  font-size:13.5px;font-weight:700;color:#fff;padding:12px;border-radius:12px;
+  background:linear-gradient(135deg,#8b5cf6,#3b82f6);transition:transform .25s var(--ease-spring),filter .2s;}
+button.go:hover{transform:translateY(-1px);filter:brightness(1.07);}
+button.go:disabled{opacity:.6;cursor:wait;transform:none;}
+.err{display:none;font-size:12px;color:var(--danger);background:rgba(239,68,68,.09);
+  border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:9px 12px;margin-bottom:12px;}
+.err.on{display:block;animation:shake .35s;}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.hint{font-size:11px;color:var(--text-4);margin-top:16px;line-height:1.6;}
+.hint code{font-family:var(--font-mono);font-size:10.5px;color:var(--text-3);}
+.theme{position:fixed;top:16px;right:16px;border:1px solid var(--border);background:var(--bg-elev);
+  color:var(--text-3);border-radius:10px;width:36px;height:36px;cursor:pointer;font-size:15px;}
+</style>
+</head>
+<body>
+<button class="theme" onclick="toggleTheme()" aria-label="Toggle theme">◐</button>
+<div class="card">
+  <div class="logo">M</div>
+  <h1>Momentum</h1>
+  <div class="sub">mission control · sign in</div>
+  <div class="err" id="err">Wrong email or password — try again.</div>
+  <form id="f" autocomplete="on">
+    <div class="field">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m2 7 10 6 10-6"/></svg>
+      <input id="email" type="email" placeholder="Email address" autocomplete="username" required>
+    </div>
+    <div class="field">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      <input id="pw" type="password" placeholder="Password" autocomplete="current-password" required>
+      <button type="button" class="eye" onclick="togglePw()" aria-label="Show password"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+    </div>
+    <button class="go" id="go" type="submit">Sign in →</button>
+  </form>
+  <div class="hint">First run? Use the <code>APP_EMAIL</code> + <code>APP_PASSWORD</code><br>you set in Railway variables.</div>
+</div>
+<script>
+if(localStorage.getItem('momentum_theme')==='light'){document.documentElement.classList.remove('dark');document.documentElement.classList.add('light');}
+function toggleTheme(){const h=document.documentElement;const light=h.classList.contains('light');h.classList.toggle('light',!light);h.classList.toggle('dark',light);localStorage.setItem('momentum_theme',light?'dark':'light');}
+function togglePw(){const i=document.getElementById('pw');i.type=i.type==='password'?'text':'password';}
+document.getElementById('f').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const btn=document.getElementById('go');btn.disabled=true;btn.textContent='Signing in…';
+  document.getElementById('err').classList.remove('on');
+  try{
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email:document.getElementById('email').value.trim(),password:document.getElementById('pw').value})});
+    if(!r.ok) throw 0;
+    location.href='/';
+  }catch(_){const er=document.getElementById('err');er.classList.remove('on');void er.offsetWidth;er.classList.add('on');}
+  btn.disabled=false;btn.textContent='Sign in →';
+});
+</script>
+</body>
+</html>

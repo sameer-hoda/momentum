@@ -4,6 +4,14 @@ Turns your WhatsApp work groups into a mission-control board: a Home greeting wi
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/momentum)
 
+### Sign in
+
+Every instance opens on a sign-in screen in the project's own style — email +
+password (the `APP_EMAIL` + `APP_PASSWORD` you set in variables), light/dark
+aware, 30-day sessions. API clients can still use HTTP Basic with the password.
+
+![Sign in](assets/login.png)
+
 ### After you click Deploy, do this
 
 1. **Set your password.** Railway asks for three values — type your own password into `APP_PASSWORD`, paste a [Gemini key](https://aistudio.google.com/) (free), and put your WhatsApp display name in `OWNER_NAME`.
