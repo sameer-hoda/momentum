@@ -887,32 +887,47 @@ func main() {
 
 	// Connect to WhatsApp
 	if client.Store.ID == nil {
-		// No ID stored, this is a new client, need to pair with phone
-		qrChan, _ := client.GetQRChannel(context.Background())
-		err = client.Connect()
-		if err != nil {
-			logger.Errorf("Failed to connect: %v", err)
-			return
-		}
+		// No ID stored, this is a new client, need to pair with phone.
+		// Retry forever: each round prints a fresh QR (codes expire fast).
+		for {
+			qrChan, _ := client.GetQRChannel(context.Background())
+			err = client.Connect()
+			if err != nil {
+				logger.Errorf("Failed to connect: %v — retrying in 10s", err)
+				time.Sleep(10 * time.Second)
+				continue
+			}
 
-		// Print QR code for pairing with phone
-		for evt := range qrChan {
-			if evt.Event == "code" {
-				fmt.Println("\nScan this QR code with your WhatsApp app:")
-				qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
-			} else if evt.Event == "success" {
-				connected <- true
+			paired := false
+			timeout := time.After(3 * time.Minute)
+		QRLOOP:
+			for {
+				select {
+				case evt, ok := <-qrChan:
+					if !ok {
+						break QRLOOP
+					}
+					if evt.Event == "code" {
+						fmt.Println("\nScan this QR code with your WhatsApp app:")
+						fmt.Println("QR_BEGIN")
+						qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
+						fmt.Println("QR_END")
+					} else if evt.Event == "success" {
+						paired = true
+						break QRLOOP
+					}
+				case <-timeout:
+					break QRLOOP
+				}
+			}
+
+			if paired {
+				fmt.Println("\nSuccessfully connected and authenticated!")
 				break
 			}
-		}
-
-		// Wait for connection
-		select {
-		case <-connected:
-			fmt.Println("\nSuccessfully connected and authenticated!")
-		case <-time.After(3 * time.Minute):
-			logger.Errorf("Timeout waiting for QR code scan")
-			return
+			logger.Errorf("QR expired before scan — disconnecting and printing a fresh one...")
+			client.Disconnect()
+			time.Sleep(3 * time.Second)
 		}
 	} else {
 		// Already logged in, just connect

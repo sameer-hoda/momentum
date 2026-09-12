@@ -33,6 +33,7 @@ DATA_FILE = os.path.join(FRONTEND_DIR, 'frontend_data.json')
 MESSAGES_DB = os.path.join(STORE_DIR, 'messages.db')
 SENT_LOG = os.path.join(STORE_DIR, 'sent_log.jsonl')
 PROVISION_FILE = '/tmp/provision.json'
+BRIDGE_LOG = os.environ.get('BRIDGE_LOG', os.path.join(STORE_DIR, '..', 'bridge.log'))
 
 PORT = int(os.environ.get('PORT', '8082'))
 LIVE = os.environ.get('MOMENTUM_LIVE', '0') == '1'
@@ -434,6 +435,26 @@ def bridge_ok():
             return False
 
 
+def read_qr():
+    """Latest QR block from the bridge log (emitted between QR_BEGIN/END)."""
+    try:
+        st = os.stat(BRIDGE_LOG)
+        with open(BRIDGE_LOG, errors='ignore') as f:
+            txt = f.read()
+    except Exception:
+        return None, None
+    if 'QR_BEGIN' not in txt:
+        return None, None
+    block = txt.rsplit('QR_BEGIN', 1)[1]
+    if 'QR_END' in block:
+        block = block.split('QR_END')[0]
+    lines = [l.rstrip() for l in block.strip().splitlines() if l.strip()]
+    if len(lines) < 5:
+        return None, None
+    return '\n'.join(lines), datetime.datetime.fromtimestamp(
+        st.st_mtime, datetime.timezone.utc).isoformat()
+
+
 def read_provision():
     for p in (PROVISION_FILE, os.path.join(STORE_DIR, 'provision.json')):
         try:
@@ -565,6 +586,9 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json(api_status())
         if self.path == '/api/owner':
             return self._json({'owner': OWNER_NAME})
+        if self.path == '/api/qr':
+            qr, updated = read_qr()
+            return self._json({'qr': qr, 'updated': updated})
         return super().do_GET()
 
     def do_POST(self):

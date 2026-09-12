@@ -188,6 +188,11 @@
     border:3px solid var(--border); border-top-color:hsl(var(--hue-1) 75% 55%);
     animation:spin 0.9s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
+  #boot-qr { display:none; font-family:var(--font-mono); font-size:7px; line-height:7px;
+    text-align:center; background:var(--bg-sunken); border:1px solid var(--border-soft);
+    border-radius:12px; padding:14px 8px; margin:12px auto 0; max-width:100%;
+    overflow-x:auto; color:var(--text-1); }
+  #boot-qr.on { display:block; }
   .recap-item { display:flex; align-items:center; gap:9px; padding:8px 0; border-bottom:1px dashed var(--border-soft); }
   .recap-item:last-child { border-bottom:none; }
   #home-recap { background:color-mix(in srgb, hsl(var(--hue-1) 75% 60%) 7%, var(--bg-elev)); }
@@ -1046,6 +1051,7 @@
     <div class="display text-[17px] font-semibold text-center" style="color:var(--text-1)" id="boot-title">Getting your workspace ready…</div>
     <p class="text-[12px] text-center mt-1.5" style="color:var(--text-3)" id="boot-sub">This takes a few minutes on first run.</p>
     <div class="mt-4" id="boot-steps"></div>
+    <pre id="boot-qr"></pre>
     <p class="text-[11.5px] mt-3 leading-relaxed" style="color:var(--text-3)" id="boot-hint"></p>
   </div>
 </div>
@@ -1261,11 +1267,19 @@ async function bootSequence() {
     $('#boot-sub').textContent = ((st && st.detail) || 'Working…') + extra;
     $('#boot-hint').innerHTML =
       (!st || st.stage==='awaiting_bridge') ? 'Starting services — hang tight.' :
-      st.stage==='awaiting_qr' ? 'Open this instance&apos;s <b>deploy logs</b>, find the QR code, and scan it with WhatsApp → Settings → Linked devices.' :
+      st.stage==='awaiting_qr' ? 'Scan with WhatsApp → Settings → Linked devices. The code refreshes itself — no rush.' :
       st.stage==='syncing' ? 'Pulling chat history. Large accounts take a few minutes — the count grows as it lands.' :
       st.stage==='analyzing' ? 'Reading every thread and ranking what needs you. First run takes a few minutes.' :
       st.stage==='error' ? ('Something stalled: ' + (st.detail||'') + ' Check deploy logs, then POST /api/rebuild.') :
       (st.detail||'');
+    const qrEl = $('#boot-qr');
+    if (st && st.stage==='awaiting_qr') {
+      try {
+        const q = await fetch('/api/qr').then(r=>r.json());
+        if (q && q.qr) { qrEl.textContent = q.qr; qrEl.classList.add('on'); }
+        else qrEl.classList.remove('on');
+      } catch(e) { qrEl.classList.remove('on'); }
+    } else qrEl.classList.remove('on');
     if (st && !st.gemini && (st.stage==='analyzing'||st.stage==='ready'))
       $('#boot-hint').innerHTML += '<br>Tip: set GEMINI_API_KEY for full AI analysis (works without it, heuristically).';
     await new Promise(r=>setTimeout(r, 3000));
