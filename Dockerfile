@@ -1,5 +1,5 @@
 # ---- bridge (Go + whatsmeow, cgo sqlite) ----
-FROM golang:1.24-bookworm AS bridge
+FROM golang:1.26-bookworm AS bridge
 WORKDIR /b
 COPY bridge/go.mod bridge/go.sum ./
 RUN go mod download
