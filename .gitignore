@@ -1,0 +1,16 @@
+.env
+*.db
+*.db.gz
+*.db-journal
+*.db-wal
+*.db-shm
+*.log
+*.pem
+*.key
+__pycache__/
+venv/
+.DS_Store
+provision_run.log
+sent_log.jsonl
+frontend_data.json
+pipeline_state.json

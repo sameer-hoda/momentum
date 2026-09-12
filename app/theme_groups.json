@@ -1,0 +1,14 @@
+{
+  "work": {
+    "label": "Work",
+    "owner": "",
+    "description": "Add your work group names here (first run auto-maps everything into Chats)",
+    "groups": []
+  },
+  "personal": {
+    "label": "Personal",
+    "owner": "",
+    "description": "Add personal group names here",
+    "groups": []
+  }
+}

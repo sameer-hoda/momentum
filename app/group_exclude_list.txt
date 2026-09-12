@@ -1,0 +1,5 @@
+# One group name per line (case-insensitive). These never enter the board.
+# status@broadcast and archived chats are already filtered in code.
+# Example:
+# Family Spam
+# Cricket Betting
