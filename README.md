@@ -1,10 +1,49 @@
 # Momentum — WhatsApp Mission Control
 
-Turns your WhatsApp work groups into a mission-control board: Home greeting with your top-10 threads, an Atlas treemap of every theme, Pulse digests, and a Kanban board — with AI reply drafts you can send back to any group.
+Turns your WhatsApp work groups into a mission-control board: a Home greeting with your top-10 threads, an Atlas treemap of every theme, Pulse digests, and a Kanban board — with AI reply drafts you can send back to any group.
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template?template=https://github.com/sameer-hoda/momentum&envs=APP_PASSWORD,GEMINI_API_KEY,OWNER_NAME)
 
 No WhatsApp? Set `DEMO_MODE=1` and it boots with a synthetic workspace instead.
+All screenshots below are that synthetic demo — zero real chats.
+
+## Views
+
+### Home — your day at a glance
+Greeting, live summary pills, last-24-hours recap, and a Top 10 ranked purely by
+**your involvement** (your move → you asked → you own it → you raised it → your
+messages → nudges), each card showing exactly why it ranks. Flip between
+sticky-note and task-table layouts.
+
+![Home](assets/home.png)
+
+### Command Center — Atlas treemap + unblock score
+Every theme is a territory, every sub-theme a heat tile (calm → critical).
+Crowded territories collapse their tail into a `+N more` strip. The 90-day
+unblock wall tracks activity vs friction, with the 14-day average against the
+prior 14.
+
+![Command Center](assets/command.png)
+
+### Pulse — what happened
+3-hour bulletin windows, 7 day digests, and one weekly storyline — cross-group,
+no noise.
+
+![Pulse](assets/pulse.png)
+
+### Board — keep statuses honest
+Drag threads between Blocked / In Progress / Completed. Overrides persist;
+reset anytime.
+
+![Board](assets/board.png)
+
+## Architecture
+
+Built with [Archify](https://github.com/tt-a1i/archify) from the actual repo —
+open [`docs/architecture.html`](docs/architecture.html) for the interactive map
+(search, guided stories, dark/light).
+
+![Architecture](assets/architecture.png)
 
 ## How it works
 

@@ -4,11 +4,13 @@ import datetime, json, random
 PEOPLE = ['Alex Morgan', 'Priya Nair', 'Rohan Mehta', 'Sara Iqbal',
           'Dev Patel', 'Neha Rao', 'Kiran Das', 'Anika Shah']
 THEMES = [
-    ('work', 'Work', '#3b82f6', ['planning', 'launches', 'reviews']),
-    ('product', 'Product', '#8b5cf6', ['roadmap', 'bugs', 'design']),
-    ('growth', 'Growth', '#10b981', ['campaigns', 'onboarding']),
+    ('work', 'Work', '#3b82f6', ['planning', 'launches', 'reviews', 'hiring', 'ops']),
+    ('product', 'Product', '#8b5cf6', ['roadmap', 'bugs', 'design', 'analytics', 'mobile']),
+    ('growth', 'Growth', '#10b981', ['campaigns', 'onboarding', 'referrals', 'pricing', 'email']),
 ]
 STATES = ['needs_you', 'blocked', 'waiting_other', 'active', 'active', 'active', 'stale', 'done']
+STATUS_OF = {'needs_you': 'running', 'blocked': 'blocked', 'waiting_other': 'running',
+             'active': 'running', 'stale': 'running', 'done': 'completed'}
 TITLES = [
     ('Decide launch date for v2 rollout', 'Launch checklist is 90% done, need a final call on the date'),
     ('Unblock the checkout success dip', 'Success rate dipped 2 points after the latest release'),
@@ -22,6 +24,24 @@ TITLES = [
     ('Close the refund policy thread', 'Policy agreed, needs a closing message in group'),
     ('Nudge design for empty-state assets', 'Specs shared last week, no update since'),
     ('Verify analytics event naming', 'Three events renamed, dashboard filters updated'),
+    ('Scope the referral leaderboard', 'Top 3 designs shortlisted, need a tie-break vote'),
+    ('Debug push notification delays', 'P99 latency doubled on the new provider'),
+    ('Approve the pricing page rewrite', 'New tiers explained, FAQ still missing'),
+    ('Plan the offsite agenda', 'Venue booked, sessions need owners'),
+    ('Review crash reports from Friday', 'One new signature in the top 5 crashes'),
+    ('Localize the paywall for Spanish', 'Strings frozen, translators booked'),
+    ('Audit notification preferences', 'Opt-out rate crept up after the last blast'),
+    ('Ship the dark-mode toggle', 'Behind a flag, rolling to 10% today'),
+    ('Reconcile the ad spend report', 'Two invoices mismatch the dashboard totals'),
+    ('Interview loop for iOS engineer', 'Three screens done, onsite pending'),
+    ('Migrate the email templates', 'New builder ready, 12 templates to port'),
+    ('Settle the data retention policy', 'Legal wants 90 days, eng prefers 30'),
+    ('Prototype the widget gallery', 'Three concepts, testing one with users'),
+    ('Renew the vendor contracts', 'Two renewals due end of quarter'),
+    ('Write the launch retrospective', 'Survey out, synthesis starts Monday'),
+    ('Triage the support backlog', 'Oldest ticket is 11 days old, needs an owner'),
+    ('Refresh the status page copy', 'Incident wording approved by support'),
+    ('Evaluate the new search vendor', 'POC results beat the baseline by 18%'),
 ]
 MSGS = [
     'Draft is ready for review, please check the latest build.',
@@ -46,8 +66,7 @@ def write(path):
         theme, tlabel, tcolor, subs = THEMES[ti % len(THEMES)]
         sub = subs[ti % len(subs)]
         state = STATES[ti % len(STATES)]
-        status = {'needs_you': 'open', 'blocked': 'blocked', 'waiting_other': 'open',
-                  'active': 'open', 'stale': 'open', 'done': 'done'}[state]
+        status = STATUS_OF[state]
         gname = f'Demo Group {ti % 4 + 1}'
         groups_seen.add(gname)
         age_d = ti % 9
