@@ -51,6 +51,17 @@ def msg_count():
         return 0
 
 
+def has_key():
+    if (os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY') or '').strip():
+        return True
+    try:
+        sys.path.insert(0, APP_DIR)
+        import export_data as ed
+        return bool(ed.get_gemini_key())
+    except Exception:
+        return False
+
+
 def log_hint_paired():
     try:
         tail = open(BRIDGE_LOG, errors='ignore').read()[-20000:]
@@ -120,6 +131,16 @@ def main():
             save('error', 'bridge did not come up — check deploy logs')
             return
         time.sleep(3)
+
+    # Gemini key first: analysis and drafts need it. User pastes it in the
+    # UI (validated + saved to the volume); env key skips this entirely.
+    # SKIP_KEY_CHECK=1 (or the UI "skip" choice) runs heuristic-only.
+    if not has_key() and os.environ.get('SKIP_KEY_CHECK', '0') != '1' \
+            and not os.path.exists(os.path.join(STORE_DIR, '.skip-key')):
+        save('awaiting_key', 'paste a Gemini API key to enable AI analysis', 0)
+        while not has_key():
+            time.sleep(10)
+        save('awaiting_key', 'key accepted — continuing', 0)
 
     n = msg_count()
     stable = 0

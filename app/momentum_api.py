@@ -235,6 +235,19 @@ def resolve_jid(group_name):
         return None
 
 
+def gemini_key():
+    """Env first, then the key saved via the in-UI key step (volume file)."""
+    key = (os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY') or '').strip()
+    if key:
+        return key
+    try:
+        sys.path.insert(0, APP_DIR)
+        import export_data as ed
+        return ed.get_gemini_key()
+    except Exception:
+        return ''
+
+
 def gemini_client():
     try:
         from dotenv import load_dotenv
@@ -245,10 +258,37 @@ def gemini_client():
         import google.genai as genai
     except Exception:
         return None
-    key = os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY')
+    key = gemini_key()
     if not key:
         return None
     return genai.Client(api_key=key)
+
+
+def validate_gemini_key(key):
+    """True if Google accepts the key (cheap list-models ping)."""
+    try:
+        import google.genai as genai
+        client = genai.Client(api_key=(key or '').strip())
+        it = client.models.list(config={'page_size': 1})
+        next(iter(it), None)
+        return True, ''
+    except Exception as e:
+        msg = str(e)
+        if 'API_KEY_INVALID' in msg or 'API key not valid' in msg or '401' in msg or '403' in msg:
+            return False, 'Google rejected this key — check it and try again'
+        return False, f'could not reach Google ({type(e).__name__}) — try again'
+
+
+def save_gemini_key(key):
+    try:
+        os.makedirs(STORE_DIR, exist_ok=True)
+        fd = os.open(os.path.join(STORE_DIR, 'gemini.key'),
+                     os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, 'w') as f:
+            f.write((key or '').strip())
+        return True
+    except Exception:
+        return False
 
 
 def build_thread_context(t):
@@ -486,7 +526,7 @@ def api_status():
         'bridge_url': BRIDGE_URL,
         'live_mode': LIVE,
         'demo_mode': DEMO,
-        'gemini': bool(os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY')),
+        'gemini': bool(gemini_key()),
         'owner': OWNER_NAME,
         'auth': bool(APP_PASSWORD),
         'persistent': persistent,
@@ -615,6 +655,28 @@ class Handler(SimpleHTTPRequestHandler):
             if 'token' in out:
                 return self._set_session(out['token'])
             return self._json(out, 401)
+        if self.path == '/api/gemini-key':
+            # Open only until a key exists (first-run step); afterwards, authed.
+            if gemini_key() and not authed(self):
+                return self._json({'error': 'a key is already set — sign in to replace it'}, 403)
+            try:
+                body = self._post_body()
+                if body.get('skip'):
+                    try:
+                        os.makedirs(STORE_DIR, exist_ok=True)
+                        open(os.path.join(STORE_DIR, '.skip-key'), 'w').write('1')
+                    except Exception:
+                        return self._json({'error': 'could not save that choice'}, 500)
+                    return self._json({'ok': True, 'skipped': True})
+                key = (body.get('key') or '').strip()
+            except json.JSONDecodeError:
+                return self._json({'error': 'bad JSON'}, 400)
+            ok, err = validate_gemini_key(key)
+            if not ok:
+                return self._json({'error': err or 'invalid key'}, 400)
+            if not save_gemini_key(key):
+                return self._json({'error': 'could not save the key on this instance'}, 500)
+            return self._json({'ok': True})
         if self.path == '/api/logout':
             _drop_session(self)
             return self._json({'ok': True})

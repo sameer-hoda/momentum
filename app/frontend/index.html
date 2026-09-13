@@ -193,6 +193,15 @@
     border-radius:12px; padding:14px 8px; margin:12px auto 0; max-width:100%;
     overflow-x:auto; color:var(--text-1); }
   #boot-qr.on { display:block; }
+  #boot-key .pill-mini{--pc:hsl(var(--hue-1) 75% 55%);font-size:12px;font-weight:650;padding:7px 14px;border-radius:99px;cursor:pointer;
+    color:color-mix(in srgb,var(--pc) 72%,var(--text-1));background:color-mix(in srgb,var(--pc) 9%,transparent);border:1px solid color-mix(in srgb,var(--pc) 34%,transparent);
+    transition:all .25s var(--ease-spring)}
+  #boot-key .pill-mini:hover{transform:translateY(-1px);box-shadow:var(--card-shadow);background:color-mix(in srgb,var(--pc) 15%,transparent)}
+  #boot-key .pill-mini:disabled{opacity:.6;cursor:wait}
+  #key-err{display:none;font-size:12px;color:var(--danger);background:rgba(239,68,68,.09);
+    border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:9px 12px;margin-bottom:8px;}
+  #key-err.on{display:block;animation:shake .35s;}
+  @keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
   .recap-item { display:flex; align-items:center; gap:9px; padding:8px 0; border-bottom:1px dashed var(--border-soft); }
   .recap-item:last-child { border-bottom:none; }
   #home-recap { background:color-mix(in srgb, hsl(var(--hue-1) 75% 60%) 7%, var(--bg-elev)); }
@@ -1052,6 +1061,18 @@
     <p class="text-[12px] text-center mt-1.5" style="color:var(--text-3)" id="boot-sub">This takes a few minutes on first run.</p>
     <div class="mt-4" id="boot-steps"></div>
     <pre id="boot-qr"></pre>
+    <div id="boot-key" style="display:none;margin-top:12px">
+      <div class="field" style="margin-bottom:8px">
+        <input id="key-input" type="password" placeholder="Paste Gemini API key (AIza…)" autocomplete="off"
+          style="width:100%;font-family:var(--font-ui);font-size:13px;color:var(--text-1);background:var(--bg-sunken);border:1px solid var(--border-soft);border-radius:12px;padding:11px 13px;outline:none">
+      </div>
+      <div class="err" id="key-err"></div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <button class="pill-mini" id="key-go" style="--pc:#10b981" onclick="submitKey()">Test key &amp; continue →</button>
+        <button class="pill-mini" style="--pc:#a8a29e" onclick="skipKey()">Skip for now (heuristic mode)</button>
+      </div>
+      <p class="text-[11px] mt-2" style="color:var(--text-4)">Free at Google AI Studio · validated before anything continues · stored only on this instance.</p>
+    </div>
     <p class="text-[11.5px] mt-3 leading-relaxed" style="color:var(--text-3)" id="boot-hint"></p>
   </div>
 </div>
@@ -1242,11 +1263,25 @@ function dayHello(d){
 /* ---------------- boot loader: wait for pair -> sync -> analysis ---------------- */
 const BOOT_STAGES = [
   ['awaiting_bridge', 'Starting WhatsApp bridge'],
+  ['awaiting_key', 'Gemini API key'],
   ['awaiting_qr', 'Waiting for WhatsApp scan'],
   ['syncing', 'Syncing message history'],
   ['analyzing', 'Analyzing threads'],
   ['ready', 'Ready'],
 ];
+async function submitKey(skip){
+  const err=$('#key-err'), go=$('#key-go');
+  err.classList.remove('on'); go.textContent='Testing…'; go.disabled=true;
+  try{
+    const body = skip ? {skip:true} : {key:$('#key-input').value.trim()};
+    const r=await fetch('/api/gemini-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(d.error||'Key rejected');
+  }catch(e){ err.textContent=e.message; err.classList.remove('on'); void err.offsetWidth; err.classList.add('on'); go.textContent='Test key & continue →'; go.disabled=false; return; }
+  document.getElementById('boot-key').style.display='none';
+  go.textContent='Test key & continue →'; go.disabled=false;
+}
+async function skipKey(){ await submitKey(true); }
 async function bootSequence() {
   const order = Object.fromEntries(BOOT_STAGES.map((s,i)=>[s[0],i]));
   try {
@@ -1267,11 +1302,14 @@ async function bootSequence() {
     $('#boot-sub').textContent = ((st && st.detail) || 'Working…') + extra;
     $('#boot-hint').innerHTML =
       (!st || st.stage==='awaiting_bridge') ? 'Starting services — hang tight.' :
+      st.stage==='awaiting_key' ? 'AI analysis needs a Gemini key. Paste it below — it is tested live before anything continues.' :
       st.stage==='awaiting_qr' ? 'Scan with WhatsApp → Settings → Linked devices. The code refreshes itself — no rush.' :
       st.stage==='syncing' ? 'Pulling chat history. Large accounts take a few minutes — the count grows as it lands.' :
       st.stage==='analyzing' ? 'Reading every thread and ranking what needs you. First run takes a few minutes.' :
       st.stage==='error' ? ('Something stalled: ' + (st.detail||'') + ' Check deploy logs, then POST /api/rebuild.') :
       (st.detail||'');
+    document.getElementById('boot-key').style.display =
+      (st && st.stage==='awaiting_key') ? 'block' : 'none';
     const qrEl = $('#boot-qr');
     if (st && st.stage==='awaiting_qr') {
       try {

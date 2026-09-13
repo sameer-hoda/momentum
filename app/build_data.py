@@ -43,7 +43,7 @@ from dotenv import load_dotenv
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(SCRIPT_DIR, '..', 'wa_productivity', '.env'))
-API_KEY = os.environ.get('GEMINI_API_KEY', os.environ.get('GOOGLE_API_KEY', ''))
+API_KEY = ''  # resolved lazily via ed.get_gemini_key() (env or volume file)
 ME = os.environ.get('OWNER_NAME', '').strip().lower()
 def is_me(name):
     return bool(ME) and ME in str(name or '').lower()
@@ -90,12 +90,15 @@ BOT_RE = re.compile(
 # LLM client (lazy)
 # ---------------------------------------------------------------------------
 _client = None
+_client_key = None
 def client():
-    global _client
-    if _client is None and API_KEY:
+    global _client, _client_key
+    key = ed.get_gemini_key()
+    if key and (_client is None or key != _client_key):
         from google import genai
-        _client = genai.Client(api_key=API_KEY)
-    return _client
+        _client = genai.Client(api_key=key)
+        _client_key = key
+    return _client if key else None
 
 LLM_TIMEOUT = 90  # seconds — genai can hang forever on network issues
 

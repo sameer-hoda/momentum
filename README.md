@@ -14,10 +14,11 @@ aware, 30-day sessions. API clients can still use HTTP Basic with the password.
 
 ### After you click Deploy, do this
 
-1. **Set your password — or skip it.** Railway asks for values: you can set `APP_PASSWORD` (+ optional `APP_EMAIL`) now, or leave them empty and **create your email + password on the sign-in page at first visit** (typed twice, stored hashed on your volume). Either way, nobody else sets it.
-2. **Storage is included.** The template ships a volume mounted at `/data` — this keeps your chats and login safe across restarts. (If you ever start from scratch manually: service → Volumes → New Volume → `/data` → redeploy.)
-3. **Scan the QR.** It appears right on the loading screen (refreshing itself until you scan) — or find it in the deploy logs. Scan with WhatsApp → Settings → Linked devices.
-4. **Log in and wait.** Open your Railway domain, enter your password, and watch the loader: scan → syncing → analyzing → ready. That's it — your board is live.
+1. **Sign-in is created in the app.** You can pre-set `APP_PASSWORD` (+ optional `APP_EMAIL`) as Railway variables, or leave them empty and **create your email + password on the sign-in page at first visit** (typed twice, stored hashed on your volume). Either way, nobody else sets it.
+2. **Gemini key comes before WhatsApp.** The loader asks for a Gemini key first — pasted in the UI, **validated live against Google**, stored only on your instance. Skip once to run heuristic-only; reply drafts need the key.
+3. **Storage is included.** The template ships a volume mounted at `/data` — this keeps your chats and login safe across restarts. (If you ever start from scratch manually: service → Volumes → New Volume → `/data` → redeploy.)
+4. **Scan the QR.** It appears right on the loading screen (refreshing itself until you scan) — or find it in the deploy logs. Scan with WhatsApp → Settings → Linked devices.
+5. **Log in and wait.** Open your Railway domain, enter your password, and watch the loader: scan → syncing → analyzing → ready. That's it — your board is live.
 
 No WhatsApp? Set `DEMO_MODE=1` and it boots with a synthetic workspace instead.
 All screenshots below are that synthetic demo — zero real chats.

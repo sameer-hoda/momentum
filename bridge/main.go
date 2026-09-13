@@ -32,6 +32,10 @@ import (
 
 
 
+// verboseChatLogs controls whether full message bodies are printed to stdout.
+// Default off: chat content stays in the local SQLite store, never in logs.
+var verboseChatLogs = os.Getenv("BRIDGE_VERBOSE") == "1"
+
 // Message represents a chat message for our client
 type Message struct {
 	Time      time.Time
@@ -1116,8 +1120,10 @@ func handleHistorySync(client *whatsmeow.Client, messageStore *MessageStore, his
 					mediaType, filename, url, mediaKey, fileSHA256, fileEncSHA256, fileLength = extractMediaInfo(msg.Message.Message)
 				}
 
-				// Log the message content for debugging
-				logger.Infof("Message content: %v, Media Type: %v", content, mediaType)
+				// Log the message content for debugging (opt-in only)
+				if verboseChatLogs {
+					logger.Infof("Message content: %v, Media Type: %v", content, mediaType)
+				}
 
 				// Skip messages with no content and no media
 				if content == "" && mediaType == "" {
@@ -1175,13 +1181,15 @@ func handleHistorySync(client *whatsmeow.Client, messageStore *MessageStore, his
 					logger.Warnf("Failed to store history message: %v", err)
 				} else {
 					syncedCount++
-					// Log successful message storage
-					if mediaType != "" {
-						logger.Infof("Stored message: [%s] %s -> %s: [%s: %s] %s",
-							timestamp.Format("2006-01-02 15:04:05"), sender, chatJID, mediaType, filename, content)
-					} else {
-						logger.Infof("Stored message: [%s] %s -> %s: %s",
-							timestamp.Format("2006-01-02 15:04:05"), sender, chatJID, content)
+					// Log successful message storage (bodies only when opted in)
+					if verboseChatLogs {
+						if mediaType != "" {
+							logger.Infof("Stored message: [%s] %s -> %s: [%s: %s] %s",
+								timestamp.Format("2006-01-02 15:04:05"), sender, chatJID, mediaType, filename, content)
+						} else {
+							logger.Infof("Stored message: [%s] %s -> %s: %s",
+								timestamp.Format("2006-01-02 15:04:05"), sender, chatJID, content)
+						}
 					}
 				}
 			}
