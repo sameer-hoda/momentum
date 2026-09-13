@@ -51,9 +51,29 @@ def msg_count():
         return 0
 
 
-def has_key():
-    if (os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY') or '').strip():
+def _ping_key(key):
+    try:
+        from google import genai
+        it = genai.Client(api_key=key).models.list(config={'page_size': 1})
+        next(iter(it), None)
         return True
+    except Exception as e:
+        log(f'env key check failed ({type(e).__name__})')
+        return False
+
+
+_key_ok = {}
+
+
+def has_key():
+    env = (os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY') or '').strip()
+    if env:
+        if env not in _key_ok:
+            _key_ok[env] = _ping_key(env)
+        if _key_ok[env]:
+            return True
+        log('env Gemini key rejected by Google — will ask in UI instead')
+        return False
     try:
         sys.path.insert(0, APP_DIR)
         import export_data as ed
