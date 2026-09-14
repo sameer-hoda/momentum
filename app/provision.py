@@ -155,12 +155,16 @@ def main():
     # Gemini key first: analysis and drafts need it. User pastes it in the
     # UI (validated + saved to the volume); env key skips this entirely.
     # SKIP_KEY_CHECK=1 (or the UI "skip" choice) runs heuristic-only.
+    skip_file = os.path.join(STORE_DIR, '.skip-key')
     if not has_key() and os.environ.get('SKIP_KEY_CHECK', '0') != '1' \
-            and not os.path.exists(os.path.join(STORE_DIR, '.skip-key')):
+            and not os.path.exists(skip_file):
         save('awaiting_key', 'paste a Gemini API key to enable AI analysis', 0)
-        while not has_key():
+        while not has_key() and not os.path.exists(skip_file):
             time.sleep(10)
-        save('awaiting_key', 'key accepted — continuing', 0)
+        if os.path.exists(skip_file):
+            save('awaiting_key', 'heuristic mode — continuing without AI', 0)
+        else:
+            save('awaiting_key', 'key accepted — continuing', 0)
 
     n = msg_count()
     stable = 0
