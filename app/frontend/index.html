@@ -1195,6 +1195,15 @@ const AV_GRADS = [['#8b5cf6','#6366f1'],['#3b82f6','#06b6d4'],['#10b981','#05966
 
 let TASKS = [], BULLETINS = [], DAYS = [], WEEK = null;
 let MAP = [], WALL = null;
+/* Storage-blocked contexts (Brave shields, locked-down webviews, some
+   Railway previews) throw on ANY localStorage touch — even getItem — which
+   used to kill the whole script before boot. Every access goes through this
+   never-throwing wrapper, so the app always loads; persistence just degrades. */
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v === null ? d : v; } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem(k, v); } catch(e){} },
+  del(k){ try { localStorage.removeItem(k); } catch(e){} },
+};
 let activeTheme = 'all', activeStatus = 'all', activeView = 'command';
 let OWNER_NAME = '', OWNER_LC = '';
 function isOwner(n){ n = String(n||''); if(!n) return false;
@@ -1215,10 +1224,10 @@ function scrollToList(){ const el=$('#task-list-container'); if(el) el.scrollInt
 const ARCH_KEY = 'momentum_archived_v1';
 const OVR_KEY = 'momentum_status_overrides_v1';
 let ARCHIVED = {}, OVERRIDES = {};
-try { ARCHIVED = JSON.parse(localStorage.getItem(ARCH_KEY) || '{}'); } catch(e) { ARCHIVED = {}; }
-try { OVERRIDES = JSON.parse(localStorage.getItem(OVR_KEY) || '{}'); } catch(e) { OVERRIDES = {}; }
-function saveArchived() { localStorage.setItem(ARCH_KEY, JSON.stringify(ARCHIVED)); updateArchBadge(); }
-function saveOverrides() { localStorage.setItem(OVR_KEY, JSON.stringify(OVERRIDES)); }
+try { ARCHIVED = JSON.parse(store.get(ARCH_KEY, '{}')); } catch(e) { ARCHIVED = {}; }
+try { OVERRIDES = JSON.parse(store.get(OVR_KEY, '{}')); } catch(e) { OVERRIDES = {}; }
+function saveArchived() { store.set(ARCH_KEY, JSON.stringify(ARCHIVED)); updateArchBadge(); }
+function saveOverrides() { store.set(OVR_KEY, JSON.stringify(OVERRIDES)); }
 function effStatus(t) { return OVERRIDES[t.id] || t.status; }
 
 function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -1546,10 +1555,10 @@ function renderRecap24() {
 
 /* state → sticky-note variant (welcome-ui palette) */
 const HOME_VARIANT = { needs_you:'pv-orange', blocked:'pv-pink', waiting_other:'pv-violet', active:'pv-blue', stale:'pv-teal', done:'pv-teal' };
-let homeLayout = localStorage.getItem('momentum_home_layout') || 'notes';
+let homeLayout = store.get('momentum_home_layout', null) || 'notes';
 function setHomeLayout(l) {
   homeLayout = l;
-  localStorage.setItem('momentum_home_layout', l);
+  store.set('momentum_home_layout', l);
   $$('#homeSeg .seg-tab').forEach(el=>el.classList.toggle('active',el.dataset.l===l));
   positionHomeSeg();
   renderTop10();
@@ -2835,10 +2844,10 @@ function switchView(view){
 function toggleTheme(){
   document.body.classList.toggle('dark');
   document.body.classList.toggle('light');
-  localStorage.setItem('momentum_theme',document.body.classList.contains('dark')?'dark':'light');
+  store.set('momentum_theme',document.body.classList.contains('dark')?'dark':'light');
   toast(document.body.classList.contains('dark')?'Dark mode':'Light mode');
 }
-if(localStorage.getItem('momentum_theme')==='dark'){ document.body.classList.remove('light'); document.body.classList.add('dark'); }
+if(store.get('momentum_theme','light')==='dark'){ document.body.classList.remove('light'); document.body.classList.add('dark'); }
 
 /* ---------------- cmdk ---------------- */
 function openDrawer(){ if(!$('#sidebar').classList.contains('open')) lockScroll(); $('#sidebar').classList.add('open'); $('#drawerOverlay').classList.add('open'); }

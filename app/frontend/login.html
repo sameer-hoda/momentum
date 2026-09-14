@@ -90,8 +90,10 @@ button.go:disabled{opacity:.6;cursor:wait;transform:none;}
   <div class="hint" id="hint">First run? Use the <code>APP_EMAIL</code> + <code>APP_PASSWORD</code><br>you set in Railway variables.</div>
 </div>
 <script>
-if(localStorage.getItem('momentum_theme')==='light'){document.documentElement.classList.remove('dark');document.documentElement.classList.add('light');}
-function toggleTheme(){const h=document.documentElement;const light=h.classList.contains('light');h.classList.toggle('light',!light);h.classList.toggle('dark',light);localStorage.setItem('momentum_theme',light?'dark':'light');}
+function storeGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+function storeSet(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+if(storeGet('momentum_theme')==='light'){document.documentElement.classList.remove('dark');document.documentElement.classList.add('light');}
+function toggleTheme(){const h=document.documentElement;const light=h.classList.contains('light');h.classList.toggle('light',!light);h.classList.toggle('dark',light);storeSet('momentum_theme',light?'dark':'light');}
 function togglePw(id){const i=document.getElementById(id||'pw');i.type=i.type==='password'?'text':'password';}
 let MODE='login';
 async function initMode(){
