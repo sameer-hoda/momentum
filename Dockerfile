@@ -10,6 +10,9 @@ RUN CGO_ENABLED=1 go build -trimpath -o wabridge .
 FROM python:3.12-slim-bookworm
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
  && rm -rf /var/lib/apt/lists/*
+ARG GIT_SHA=unknown
+ARG RAILWAY_GIT_COMMIT_SHA=
+ENV GIT_SHA=${RAILWAY_GIT_COMMIT_SHA:-$GIT_SHA}
 WORKDIR /srv
 COPY app/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt

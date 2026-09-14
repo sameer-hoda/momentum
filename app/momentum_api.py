@@ -530,6 +530,7 @@ def api_status():
         'owner': OWNER_NAME,
         'auth': bool(APP_PASSWORD),
         'persistent': persistent,
+        'build': os.environ.get('GIT_SHA', 'unknown'),
         'messages': st.get('messages', 0),
         'tasks': ntasks,
         'updated': st.get('updated'),
