@@ -475,6 +475,32 @@ def bridge_ok():
             return False
 
 
+_client_log_hits = {}
+
+
+def client_log_ok(ip):
+    now = time.time()
+    hits = _client_log_hits.get(ip, [])
+    hits = [h for h in hits if now - h < 60]
+    if len(hits) >= 20:
+        return False
+    hits.append(now)
+    _client_log_hits[ip] = hits
+    return True
+
+
+def do_client_log(payload, ip):
+    try:
+        msg = str(payload.get('message') or '')[:300]
+        stack = str(payload.get('stack') or '')[:800]
+        url = str(payload.get('url') or '')[:200]
+        ua = str(payload.get('ua') or '')[:150]
+        print(f"[client-error] ip={ip} url={url} ua={ua} msg={msg} stack={stack}", flush=True)
+    except Exception:
+        pass
+    return {'ok': True}
+
+
 def read_qr():
     """Latest QR block from the bridge log (emitted between QR_BEGIN/END)."""
     try:
@@ -638,6 +664,14 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
+        if self.path == '/api/client-log':
+            if not client_log_ok(self.client_address[0]):
+                return self._json({'ok': False}, 429)
+            try:
+                out = do_client_log(self._post_body(), self.client_address[0])
+            except json.JSONDecodeError:
+                return self._json({'error': 'bad JSON'}, 400)
+            return self._json(out)
         if self.path == '/api/setup':
             try:
                 out = do_setup(self._post_body())

@@ -90,6 +90,21 @@ button.go:disabled{opacity:.6;cursor:wait;transform:none;}
   <div class="hint" id="hint">First run? Use the <code>APP_EMAIL</code> + <code>APP_PASSWORD</code><br>you set in Railway variables.</div>
 </div>
 <script>
+(function(){
+  var n = 0;
+  function send(kind, msg, stack){
+    if (n++ >= 10) return;
+    try {
+      var body = JSON.stringify({message: String(msg||'').slice(0,300),
+        stack: String(stack||'').slice(0,800),
+        url: location.pathname, ua: navigator.userAgent});
+      if (navigator.sendBeacon) navigator.sendBeacon('/api/client-log', body);
+      else fetch('/api/client-log',{method:'POST',headers:{'Content-Type':'application/json'},body:body,keepalive:true}).catch(function(){});
+    } catch(e){}
+  }
+  window.addEventListener('error', function(e){ send('error', e.message, e.error && e.error.stack); });
+  window.addEventListener('unhandledrejection', function(e){ send('reject', e.reason && (e.reason.message || e.reason), e.reason && e.reason.stack); });
+})();
 function storeGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
 function storeSet(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
 if(storeGet('momentum_theme')==='light'){document.documentElement.classList.remove('dark');document.documentElement.classList.add('light');}

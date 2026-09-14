@@ -1159,6 +1159,23 @@
 <div class="toast" id="toast"></div>
 
 <script>
+/* Remote error trap: reports the friend's browser errors to server logs so
+   console copy-paste is never needed. sendBeacon, tiny payloads, max 10. */
+(function(){
+  var n = 0;
+  function send(kind, msg, stack){
+    if (n++ >= 10) return;
+    try {
+      var body = JSON.stringify({message: String(msg||'').slice(0,300),
+        stack: String(stack||'').slice(0,800),
+        url: location.pathname, ua: navigator.userAgent});
+      if (navigator.sendBeacon) navigator.sendBeacon('/api/client-log', body);
+      else fetch('/api/client-log',{method:'POST',headers:{'Content-Type':'application/json'},body:body,keepalive:true}).catch(function(){});
+    } catch(e){}
+  }
+  window.addEventListener('error', function(e){ send('error', e.message, e.error && e.error.stack); });
+  window.addEventListener('unhandledrejection', function(e){ send('reject', e.reason && (e.reason.message || e.reason), e.reason && e.reason.stack); });
+})();
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 
