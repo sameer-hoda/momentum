@@ -68,6 +68,25 @@ class TestFreshJourneyGates(unittest.TestCase):
                       'fresh runs must stop at the key gate')
         self.assertIn('gemini.key', src)
 
+    def test_pasted_key_beats_env_placeholder(self):
+        import export_data as ed
+        import tempfile
+        tmp = tempfile.mkdtemp()
+        key_file = os.path.join(tmp, 'gemini.key')
+        with open(key_file, 'w') as f:
+            f.write('REAL-PASTED-KEY')
+        prev_file, prev_env = ed.GEMINI_KEY_FILE, os.environ.get('GEMINI_API_KEY')
+        ed.GEMINI_KEY_FILE = key_file
+        os.environ['GEMINI_API_KEY'] = 'RANDOM-TEMPLATE-PLACEHOLDER'
+        try:
+            self.assertEqual(ed.get_gemini_key(), 'REAL-PASTED-KEY')
+        finally:
+            ed.GEMINI_KEY_FILE = prev_file
+            if prev_env is None:
+                os.environ.pop('GEMINI_API_KEY', None)
+            else:
+                os.environ['GEMINI_API_KEY'] = prev_env
+
     def test_static_served_fresh(self):
         with open(os.path.join(REPO, 'app', 'momentum_api.py')) as f:
             src = f.read()

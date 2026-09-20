@@ -10,15 +10,19 @@ GEMINI_KEY_FILE = os.path.join(STORE_DIR, 'gemini.key')
 
 
 def get_gemini_key():
-    """API key from env, else the file saved via the in-UI key step."""
-    key = (os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY') or '').strip()
-    if key:
-        return key
+    """UI-pasted volume key wins; env is the fallback.
+
+    A template-generated placeholder must never shadow a real key the user
+    pasted (and live-tested) in the UI.
+    """
     try:
         with open(GEMINI_KEY_FILE) as f:
-            return f.read().strip()
+            file_key = f.read().strip()
+        if file_key:
+            return file_key
     except Exception:
-        return ''
+        pass
+    return (os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY') or '').strip()
 MESSAGES_DB = os.path.join(STORE_DIR, 'messages.db')
 WHATSAPP_DB = os.path.join(STORE_DIR, 'whatsapp.db')
 THEME_FILE = os.path.join(SCRIPT_DIR, 'theme_groups.json')
