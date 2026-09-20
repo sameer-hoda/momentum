@@ -25,6 +25,7 @@ import json, os, re, secrets, sqlite3, subprocess, sys, datetime, time, threadin
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.request import urlopen
 from urllib.error import URLError, HTTPError
+from urllib.parse import urlparse, parse_qs
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.join(APP_DIR, 'frontend')
@@ -320,6 +321,79 @@ def parse_ts(s):
         return None
 
 
+NUDGE_OVERRIDES_FILE = 'nudge_overrides.json'
+
+
+def load_nudge_overrides():
+    """{task_id: {status: snoozed|closed, ts}}; empty dict on any error."""
+    try:
+        with open(os.path.join(STORE_DIR, NUDGE_OVERRIDES_FILE)) as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def save_nudge_override(task_id, action):
+    """Persist a dismiss ({task_id: {status, ts}}). Returns {'ok': True} or {'error': ...}."""
+    if action not in ('snoozed', 'snooze', 'closed', 'mark_closed'):
+        return {'error': 'action must be snooze or mark_closed'}
+    status = 'snoozed' if action in ('snoozed', 'snooze') else 'closed'
+    if not task_id:
+        return {'error': 'nudge_id or task_id required'}
+    try:
+        os.makedirs(STORE_DIR, exist_ok=True)
+        path = os.path.join(STORE_DIR, NUDGE_OVERRIDES_FILE)
+        try:
+            with open(path) as f:
+                d = json.load(f)
+            if not isinstance(d, dict):
+                d = {}
+        except Exception:
+            d = {}
+        d[str(task_id)] = {'status': status,
+                           'ts': datetime.datetime.now(
+                               datetime.timezone.utc).isoformat()}
+        with open(path, 'w') as f:
+            json.dump(d, f)
+        return {'ok': True, 'status': status}
+    except Exception as e:
+        return {'error': str(e)}
+
+
+def api_nudges(window_min=5):
+    """Scan recent tasks/messages for high-bar nudges. Stdlib only, no LLM."""
+    try:
+        sys.path.insert(0, APP_DIR)
+        from nudge_scan import scan_nudges
+    except Exception as e:
+        return {'error': f'nudge scan unavailable ({e})'}
+    try:
+        window_min = max(1, min(int(window_min), 120))
+    except (TypeError, ValueError):
+        window_min = 5
+    now = datetime.datetime.now(datetime.timezone.utc)
+    try:
+        tasks = load_data().get('tasks', []) or []
+    except Exception:
+        tasks = []
+    messages = []
+    for t in tasks:
+        for m in (t.get('messages') or []):
+            mm = dict(m)
+            mm.setdefault('group', t.get('group', ''))
+            mm.setdefault('task_id', t.get('id', ''))
+            messages.append(mm)
+    try:
+        nudges = scan_nudges(tasks, messages, now, window_min=window_min,
+                             owner_name=OWNER_NAME,
+                             overrides=load_nudge_overrides())
+    except Exception as e:
+        return {'error': f'nudge scan failed ({e})'}
+    return {'nudges': nudges, 'window_min': window_min,
+            'scanned_at': now.isoformat(), 'bar': 'high'}
+
+
 def gen_replies(payload):
     t = get_task(payload.get('task_id', ''))
     if not t:
@@ -459,8 +533,13 @@ def bridge_ok():
     try:
         r = urlopen(f'{BRIDGE_URL}/api/health', timeout=3)
         return r.status == 200
-    except HTTPError:
-        return True  # bridge answers (no /api/health route) = alive
+    except HTTPError as e:
+        # An HTTP answer is decisive: the bridge has no /api/health route,
+        # so the Go default mux answers 404 (verified live) = bridge is up.
+        # Any other error status (500 from a broken bridge, 401, ...) is
+        # NOT alive — never mask it, and never fall through to the TCP
+        # probe below (a listener on a colliding port would lie).
+        return e.code == 404
     except Exception:
         # last resort: is anything listening on the bridge port?
         try:
@@ -501,28 +580,76 @@ def do_client_log(payload, ip):
     return {'ok': True}
 
 
+def ports_collide(api_port, bridge_url):
+    """True when the API and the bridge would bind the same TCP port
+    (the bridge default is 8080; the API must live elsewhere)."""
+    try:
+        port = urlparse(bridge_url or '').port or 8080
+    except Exception:
+        port = 8080
+    try:
+        return int(api_port) == int(port)
+    except (TypeError, ValueError):
+        return False
+
+
 def read_qr():
-    """Latest QR block from the bridge log (emitted between QR_BEGIN/END)."""
+    """Latest QR as {'qr','updated','age_s','stale','trusted'}.
+
+    Primary: bracketed [QR_BEGIN QR_AT=..] blocks per the G3 gate contract
+    (newest COMPLETE block wins; mid-write tails without QR_END are
+    ignored so the previous code survives). Fallback: legacy bare
+    QR_BEGIN/END blocks from older bridges (untrusted, file-mtime age,
+    still mid-write safe). qr is None when no complete block exists.
+    """
     try:
         st = os.stat(BRIDGE_LOG)
         with open(BRIDGE_LOG, errors='ignore') as f:
             txt = f.read()
     except Exception:
-        return None, None
-    if 'QR_BEGIN' not in txt:
-        return None, None
-    block = txt.rsplit('QR_BEGIN', 1)[1]
-    if 'QR_END' in block:
-        block = block.split('QR_END')[0]
-    lines = [l.rstrip() for l in block.strip().splitlines() if l.strip()]
-    if len(lines) < 5:
-        return None, None
-    return '\n'.join(lines), datetime.datetime.fromtimestamp(
-        st.st_mtime, datetime.timezone.utc).isoformat()
+        return {'qr': None, 'updated': None, 'age_s': None,
+                'stale': True, 'trusted': False}
+    now = datetime.datetime.now(datetime.timezone.utc)
+    try:
+        sys.path.insert(0, APP_DIR)
+        from journey_gates import (parse_qr_cache, qr_age_seconds,
+                                   QR_REFRESH_WINDOW_S)
+        cache = parse_qr_cache(txt)
+        if cache.get('code'):
+            age = qr_age_seconds(cache, now)
+            return {
+                'qr': cache['code'],
+                'updated': cache.get('issued_at_raw'),
+                'age_s': age,
+                'stale': (age is None) or (age > QR_REFRESH_WINDOW_S),
+                'trusted': cache.get('trusted', False),
+            }
+    except Exception:
+        pass
+    # Legacy bare blocks (pre-QR_AT bridges). Bracket-aware: a bare
+    # QR_BEGIN followed only by a bracketed [QR_END] is still mid-write.
+    blocks = re.findall(r'(?<!\[)QR_BEGIN\n(.*?)(?<!\[)QR_END(?!\])',
+                        txt, re.DOTALL)
+    for block in reversed(blocks):
+        lines = [l.rstrip() for l in block.strip().splitlines()
+                 if l.strip()]
+        if len(lines) >= 5:
+            mtime = datetime.datetime.fromtimestamp(
+                st.st_mtime, datetime.timezone.utc)
+            age = int((now - mtime).total_seconds())
+            return {'qr': '\n'.join(lines),
+                    'updated': mtime.isoformat(), 'age_s': age,
+                    'stale': age > 20, 'trusted': False}
+    return {'qr': None, 'updated': None, 'age_s': None,
+            'stale': True, 'trusted': False}
 
 
 def read_provision():
-    for p in (PROVISION_FILE, os.path.join(STORE_DIR, 'provision.json')):
+    # STORE first: PROVISION_FILE (/tmp) is machine-global, so a scratch
+    # stack would otherwise clobber the live stack's stage (observed:
+    # a DEMO run flipped the live portal to ready). The per-stack STORE
+    # file is the owning stack's truth; /tmp is only a fallback mirror.
+    for p in (os.path.join(STORE_DIR, 'provision.json'), PROVISION_FILE):
         try:
             with open(p) as f:
                 return json.load(f)
@@ -531,8 +658,136 @@ def read_provision():
     return {'stage': 'starting', 'detail': 'booting', 'messages': 0}
 
 
+def public_health():
+    """Unauthenticated liveness for the Railway healthcheck, the boot
+    loader's pre-login probe, and the audit loop. Minimal by design:
+    stage + build only — never owner identity, key presence, counts,
+    or bridge URL. Full detail stays behind auth on /api/status."""
+    st = read_provision()
+    return {
+        'ok': True,
+        'stage': st.get('stage', 'starting'),
+        'build': os.environ.get('GIT_SHA', 'unknown'),
+        'updated': st.get('updated'),
+    }
+
+
+def read_build_heartbeat():
+    """Live build progress beacon written by build_data.py (G5 spec). Returns
+    {} when no build has ever reported (e.g. fresh boot, old build running)."""
+    try:
+        with open(os.path.join(STORE_DIR, 'build_heartbeat.json')) as f:
+            hb = json.load(f)
+        return hb if isinstance(hb, dict) else {}
+    except Exception:
+        return {}
+
+
+# QR-sync progress history (process-local): (epoch, count) samples fed to
+# journey_gates.sync_eta_estimate so /api/status carries an honest,
+# never-early ETA. Two lanes — message counts while syncing, heartbeat
+# thread counts while analyzing — never mixed.
+_SYNC_MSG_SAMPLES = []
+_SYNC_BUILD_SAMPLES = []
+_SYNC_SAMPLES_MAX = 120
+
+
+def _track_sample(buf, count):
+    try:
+        count = float(count)
+    except (TypeError, ValueError):
+        return buf
+    now = time.time()
+    buf.append((now, count))
+    cutoff = now - 600
+    while buf and buf[0][0] < cutoff:
+        buf.pop(0)
+    while len(buf) > _SYNC_SAMPLES_MAX:
+        buf.pop(0)
+    return buf
+
+
+def sync_progress_fields(st, data, heartbeat):
+    """Hold + ETA + partial-portal fields for /api/status.
+
+    Never fakes: percent/eta are None unless a measurable rate and a
+    known total exist in the same unit; the hold countdown always runs
+    from the server-stamped scan moment.
+    """
+    try:
+        sys.path.insert(0, APP_DIR)
+        from journey_gates import (SYNC_MIN_HOLD_S, partial_sections,
+                                   scan_hold_state, sync_eta_estimate)
+    except Exception:
+        return {}
+    now = datetime.datetime.now(datetime.timezone.utc)
+    sync_started_at = (st or {}).get('sync_started_at')
+    hold = scan_hold_state(sync_started_at, now)
+    stage = (st or {}).get('stage', 'starting')
+    try:
+        messages = float((st or {}).get('messages', 0) or 0)
+    except (TypeError, ValueError):
+        messages = 0.0
+    percent, eta_s, rate = None, None, 0.0
+    if stage == 'syncing':
+        _track_sample(_SYNC_MSG_SAMPLES, messages)
+        # totals are unknown while syncing: rate only, never a fake ETA
+        samples = [(datetime.datetime.fromtimestamp(t, datetime.timezone.utc), c)
+                   for t, c in _SYNC_MSG_SAMPLES]
+        est = sync_eta_estimate(samples, None, now)
+        rate = est['rate_per_s']
+    elif stage == 'analyzing':
+        try:
+            done = float(heartbeat.get('done'))
+            total = float(heartbeat.get('total'))
+        except (TypeError, ValueError):
+            done, total = None, None
+        if done is not None and total:
+            _track_sample(_SYNC_BUILD_SAMPLES, done)
+            samples = [(datetime.datetime.fromtimestamp(t, datetime.timezone.utc), c)
+                       for t, c in _SYNC_BUILD_SAMPLES]
+            est = sync_eta_estimate(samples, total, now)
+            percent, eta_s, rate = est['percent'], est['eta_s'], est['rate_per_s']
+    try:
+        sections = partial_sections(data if isinstance(data, dict) else {})
+    except Exception:
+        sections = {'shell_ready': True, 'partial': False, 'sections': {}}
+    progress = None
+    try:
+        progress = (data or {}).get('progress')
+    except Exception:
+        progress = None
+    return {
+        'sync_started_at': sync_started_at,
+        'sync_elapsed_s': hold.get('elapsed_s', 0),
+        'sync_hold_s': SYNC_MIN_HOLD_S,
+        'sync_hold_remaining_s': hold.get('remaining_s', 0),
+        'sync_rate_per_s': round(rate, 1),
+        'sync_percent': percent,
+        'sync_eta_s': None if eta_s is None else round(eta_s, 1),
+        'partial': bool((data or {}).get('partial', False)),
+        'progress': progress,
+        'sections': sections.get('sections', {}),
+    }
+
+
+def is_persistent_store(path):
+    """True only when data lives on the mounted Volume (/data).
+
+    A missing/mis-mounted volume must read False (never silently
+    ephemeral): the entrypoint warns, provision keeps booting for local
+    runs, and the flag is surfaced on /api/status for the deploy check.
+    """
+    try:
+        return bool(path) and path.startswith('/data') \
+            and os.path.isdir(path) and os.access(path, os.W_OK)
+    except Exception:
+        return False
+
+
 def api_status():
     st = read_provision()
+    d = {}
     try:
         d = load_data()
         ntasks = len(d.get('tasks') or [])
@@ -541,11 +796,11 @@ def api_status():
     stage = st.get('stage', 'starting')
     if stage == 'ready' and not ntasks:
         stage = 'analyzing'
-    store_ok = os.path.isdir(STORE_DIR) and os.access(STORE_DIR, os.W_OK)
     # On Railway, persistence == data lives on the mounted Volume (/data).
     # A writable dir elsewhere (e.g. container layer) vanishes on redeploy.
-    persistent = STORE_DIR.startswith('/data') and store_ok
-    return {
+    persistent = is_persistent_store(STORE_DIR)
+    heartbeat = read_build_heartbeat()
+    out = {
         'stage': stage,
         'detail': st.get('detail', ''),
         'bridge': bridge_ok(),
@@ -560,7 +815,13 @@ def api_status():
         'messages': st.get('messages', 0),
         'tasks': ntasks,
         'updated': st.get('updated'),
+        'build_progress': heartbeat,
     }
+    try:
+        out.update(sync_progress_fields(st, d, heartbeat))
+    except Exception:
+        pass
+    return out
 
 
 def trigger_rebuild():
@@ -582,6 +843,12 @@ class Handler(SimpleHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
         pass
+
+    def end_headers(self):
+        # Local mission control must never serve stale truth: a normal
+        # reload always revalidates instead of needing a hard refresh.
+        self.send_header('Cache-Control', 'no-store')
+        super().end_headers()
 
     def _json(self, obj, code=200):
         try:
@@ -641,6 +908,12 @@ class Handler(SimpleHTTPRequestHandler):
             pass
 
     def do_GET(self):
+        # Public liveness: Railway healthcheck + pre-login probes have no
+        # session. Serves before every gate (even first-run setup).
+        # /api/status stays authed: the boot loader's 401 -> login redirect
+        # depends on it.
+        if self.path == '/api/health':
+            return self._json(public_health())
         if self.path == '/login':
             return self._serve_login()
         if self.path == '/api/auth-state':
@@ -654,13 +927,20 @@ class Handler(SimpleHTTPRequestHandler):
             return self._serve_login()
         if not self._guard():
             return
-        if self.path == '/api/health' or self.path == '/api/status':
+        if self.path == '/api/status':
             return self._json(api_status())
         if self.path == '/api/owner':
             return self._json({'owner': OWNER_NAME})
+        if self.path == '/api/nudges' or self.path.startswith('/api/nudges?'):
+            q = parse_qs(urlparse(self.path).query)
+            try:
+                window = int((q.get('window') or ['5'])[0])
+            except (TypeError, ValueError):
+                window = 5
+            out = api_nudges(window)
+            return self._json(out, 200 if 'error' not in out else 500)
         if self.path == '/api/qr':
-            qr, updated = read_qr()
-            return self._json({'qr': qr, 'updated': updated})
+            return self._json(read_qr())
         return super().do_GET()
 
     def do_POST(self):
@@ -725,6 +1005,10 @@ class Handler(SimpleHTTPRequestHandler):
                 out = do_send(payload)
             elif self.path == '/api/rebuild':
                 out = trigger_rebuild()
+            elif self.path == '/api/nudges/dismiss':
+                action = payload.get('action', '')
+                key = payload.get('task_id') or payload.get('nudge_id') or ''
+                out = save_nudge_override(key, action)
             else:
                 return self._json({'error': 'not found'}, 404)
             return self._json(out, 200 if 'error' not in out else 400)
@@ -735,6 +1019,11 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 if __name__ == '__main__':
+    if ports_collide(PORT, BRIDGE_URL):
+        print(f'!! PORT collision: API :{PORT} == bridge {BRIDGE_URL} — '
+              f'the bridge will fail to bind (or the API will). Move the '
+              f'API off with PORT=8099 (local) or set WA_BRIDGE_PORT.',
+              flush=True)
     os.chdir(FRONTEND_DIR)
     srv = ThreadingHTTPServer(('0.0.0.0', PORT), Handler)
     print(f"""

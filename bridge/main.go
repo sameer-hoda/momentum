@@ -913,9 +913,9 @@ func main() {
 					}
 					if evt.Event == "code" {
 						fmt.Println("\nScan this QR code with your WhatsApp app:")
-						fmt.Println("QR_BEGIN")
+						fmt.Printf("[QR_BEGIN QR_AT=%s]\n", time.Now().UTC().Format(time.RFC3339))
 						qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
-						fmt.Println("QR_END")
+						fmt.Println("[QR_END]")
 					} else if evt.Event == "success" {
 						paired = true
 						break QRLOOP
@@ -953,8 +953,17 @@ func main() {
 
 	fmt.Println("\n✓ Connected to WhatsApp! Type 'help' for commands.")
 
-	// Start REST API server
-	startRESTServer(client, messageStore, 8080)
+	// Start REST API server (WA_BRIDGE_PORT overrides the 8080 default so
+	// the API and bridge never fight over one port in single-container
+	// deploys; default unchanged).
+	bridgePort := 8080
+	if v := os.Getenv("WA_BRIDGE_PORT"); v != "" {
+		var n int
+		if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n > 0 && n < 65536 {
+			bridgePort = n
+		}
+	}
+	startRESTServer(client, messageStore, bridgePort)
 
 	// Create a channel to keep the main goroutine alive
 	exitChan := make(chan os.Signal, 1)

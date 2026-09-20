@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nudge Card — OLD vs NEW · Momentum Showcase</title>
+<style>
+  /* ---- tokens copied from index.html :root L27-40 + .card/.chip/.pill ---- */
+  :root { --font-ui:'Inter',system-ui,sans-serif; --font-serif:'Instrument Serif',Georgia,serif; --font-mono:'JetBrains Mono',ui-monospace,monospace;
+    --hue-1:262; --hue-2:222; --hue-3:190; --ease-spring:cubic-bezier(.22,1,.36,1); --ease-out:cubic-bezier(.16,1,.3,1); }
+  .light { --bg:#f7f7f5; --bg-elev:#fff; --bg-sunken:#f0efec; --bg-inset:#e9e8e4; --border:#e7e5e0; --border-soft:#f0eeea;
+    --text-1:#1c1917; --text-2:#57534e; --text-3:#a29d97; --text-4:#d6d3cd;
+    --accent:hsl(var(--hue-1) 70% 52%); --accent-soft:hsl(var(--hue-1) 70% 52% / .09);
+    --card-shadow:0 1px 2px rgba(28,25,23,.04),0 4px 16px -4px rgba(28,25,23,.05);
+    --card-shadow-hover:0 2px 4px rgba(28,25,23,.06),0 16px 40px -12px rgba(28,25,23,.14);
+    --glass:rgba(255,255,255,.82); --aurora-opacity:.5; --sel-ring:hsl(var(--hue-1) 70% 60% / .35); }
+  .dark { --bg:#09090c; --bg-elev:#121217; --bg-sunken:#0e0e13; --bg-inset:#17171d;
+    --border:#24242b; --border-soft:#1b1b21; --text-1:#f4f4f5; --text-2:#a1a1aa; --text-3:#5b5b66; --text-4:#3f3f49;
+    --accent:hsl(var(--hue-1) 85% 68%); --accent-soft:hsl(var(--hue-1) 85% 68% / .13);
+    --card-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 4px 16px -4px rgba(0,0,0,.45);
+    --card-shadow-hover:0 1px 0 rgba(255,255,255,.05) inset,0 20px 48px -12px rgba(0,0,0,.65);
+    --glass:rgba(15,15,19,.82); --aurora-opacity:.42; --sel-ring:hsl(var(--hue-1) 85% 68% / .4); }
+  * { font-family:var(--font-ui); -webkit-font-smoothing:antialiased; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text-1); margin:0; min-height:100vh; transition:background .4s; }
+  .aurora { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden; }
+  .aurora i { position:absolute; border-radius:50%; filter:blur(100px); opacity:var(--aurora-opacity); }
+  .aurora .b1{width:44vw;height:44vw;top:-16vw;right:-10vw;background:radial-gradient(circle at 30% 30%,hsl(var(--hue-1) 80% 60%/.30),transparent 65%);}
+  .aurora .b2{width:38vw;height:38vw;top:30vh;left:-14vw;background:radial-gradient(circle at 60% 40%,hsl(var(--hue-2) 85% 58%/.22),transparent 65%);}
+  .card { background:var(--bg-elev); border:1px solid var(--border); border-radius:16px; box-shadow:var(--card-shadow); }
+  .mono{font-family:var(--font-mono);} .serif-accent{font-family:var(--font-serif);font-style:italic;}
+  .chip{font-size:10.5px;font-weight:500;padding:2.5px 9px;border-radius:99px;letter-spacing:.015em;display:inline-flex;align-items:center;gap:5px;}
+  .chip-muted{background:var(--bg-sunken);color:var(--text-3);border:1px solid var(--border-soft);}
+  .kbd{font-family:var(--font-mono);font-size:10px;color:var(--text-3);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:2px 5.5px;background:var(--bg-elev);white-space:nowrap;}
+  /* ---- verbatim OLD styles (index.html L225-247, L611-614) ---- */
+  .ns-body{position:relative;margin-top:10px;}
+  .ns-item{position:relative;height:74px;border-radius:14px;border:1px solid var(--border);background:var(--bg-elev);
+    padding:10px 14px 0;cursor:pointer;overflow:hidden;box-shadow:0 1px 2px rgba(28,25,23,.05),0 6px 18px -6px rgba(28,25,23,.10);}
+  .ns-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--ac,var(--text-4));}
+  .ns-title{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:12.5px;font-weight:600;line-height:1.32;color:var(--text-1);}
+  .ns-meta{display:flex;align-items:center;gap:6px;margin-top:5px;font-family:var(--font-mono);font-size:9px;color:var(--text-3);white-space:nowrap;overflow:hidden;}
+  .ns-meta .t-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+  .ns-viewall{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:10px;border:1.5px dashed var(--border);
+    border-radius:11px;padding:7px 0 8px;background:transparent;font-size:10.5px;font-weight:650;font-family:var(--font-mono);color:var(--text-3);cursor:pointer;width:100%;}
+  .attn-card{position:relative;border:1px solid var(--border);border-radius:12px;background:var(--bg-sunken);padding:10px 12px;cursor:pointer;}
+  .attn-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--ac,var(--text-4));border-radius:12px 0 0 12px;}
+  /* ---- NEW nudge card ---- */
+  .nudge{position:relative;display:flex;border:1px solid var(--border);border-radius:16px;background:var(--bg-elev);
+    box-shadow:var(--card-shadow);overflow:hidden;transition:box-shadow .35s var(--ease-spring),transform .35s var(--ease-spring),border-color .3s;}
+  .nudge:hover{box-shadow:var(--card-shadow-hover);transform:translateY(-1px);}
+  .nudge.sel{box-shadow:0 0 0 2px var(--sel-ring);}
+  .rail{width:34px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;padding:12px 0 10px;
+    background:color-mix(in srgb,var(--uc) 7%,transparent);border-right:1px solid var(--border-soft);position:relative;}
+  .rail::after{content:'';position:absolute;top:26px;bottom:12px;width:1.5px;background:color-mix(in srgb,var(--uc) 30%,transparent);}
+  .rail .u-dot{width:9px;height:9px;border-radius:50%;background:var(--uc);z-index:1;box-shadow:0 0 0 3.5px color-mix(in srgb,var(--uc) 18%,transparent);}
+  .rail .u-dot.pulse{animation:upulse 2.2s var(--ease-out) infinite;}
+  @keyframes upulse{0%{box-shadow:0 0 0 3.5px color-mix(in srgb,var(--uc) 20%,transparent)}50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--uc) 4%,transparent)}100%{box-shadow:0 0 0 3.5px color-mix(in srgb,var(--uc) 20%,transparent)}}
+  .rail .u-time{margin-top:6px;font-family:var(--font-mono);font-size:8px;color:var(--text-3);writing-mode:vertical-rl;letter-spacing:.04em;}
+  .n-body{flex:1;min-width:0;padding:12px 14px 13px;}
+  .n-why{font-size:11px;line-height:1.5;color:var(--text-2);}
+  .n-why b{color:var(--uc);font-weight:650;}
+  .n-title{font-size:14px;font-weight:650;letter-spacing:-.01em;margin-top:3px;color:var(--text-1);}
+  .n-move{margin-top:7px;padding:8px 11px;border-radius:10px;background:var(--bg-sunken);border:1px solid var(--border-soft);
+    font-size:12px;line-height:1.5;color:var(--text-1);display:flex;gap:8px;align-items:flex-start;}
+  .n-pills{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap;}
+  .n-pill{font-size:12px;font-weight:600;padding:7.5px 14px;border-radius:99px;cursor:pointer;border:1px solid var(--border);
+    background:var(--bg-elev);color:var(--text-2);transition:all .22s var(--ease-spring);white-space:nowrap;}
+  .n-pill:hover{transform:translateY(-1px);box-shadow:var(--card-shadow);color:var(--text-1);border-color:var(--text-4);}
+  .n-pill:active{transform:scale(.96);}
+  .n-pill.primary{background:var(--text-1);color:var(--bg);border-color:var(--text-1);}
+  .n-pill.primary:hover{filter:brightness(1.06);color:var(--bg);}
+  .col-label{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:2px;}
+  .check{border-top:1px solid var(--border-soft);margin-top:26px;padding:14px 4px 30px;display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--text-3);}
+  .check b{color:#10b981;}
+  .tgl{position:fixed;top:14px;right:14px;z-index:50;display:flex;gap:6px;background:var(--glass);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:99px;padding:4px;}
+  .tgl button{border:none;background:transparent;color:var(--text-3);font-size:12px;font-weight:600;padding:6px 14px;border-radius:99px;cursor:pointer;}
+  .tgl button.on{background:var(--text-1);color:var(--bg);}
+  @media (max-width:900px){.split{grid-template-columns:1fr !important;}}
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important;}}
+</style>
+</head>
+<body class="light">
+<div class="aurora"><i class="b1"></i><i class="b2"></i></div>
+<div class="tgl"><button id="bL" class="on" onclick="setT('light')">Light</button><button id="bD" onclick="setT('dark')">Dark</button></div>
+
+<div style="max-width:1120px;margin:0 auto;padding:56px 22px 0;">
+  <div class="mono" style="font-size:10.5px;letter-spacing:.12em;color:var(--text-3);text-transform:uppercase;">Momentum showcase · nudge-card.html</div>
+  <h1 style="font-size:30px;letter-spacing:-.03em;margin:8px 0 4px;">The nudge, <span class="serif-accent" style="font-weight:400;">rewritten as an assist.</span></h1>
+  <p style="font-size:13.5px;color:var(--text-2);max-width:62ch;line-height:1.6;margin:0 0 22px;">OLD stacks threads by status colour and waits for a hover. NEW leads with <b>why now</b>, names <b>the move</b>, and offers <b>one-tap pills</b> — urgency lives on the left timeline rail, not in a chip.</p>
+
+  <div class="split" style="display:grid;grid-template-columns:1fr 1.35fr;gap:20px;align-items:start;">
+    <!-- OLD -->
+    <div>
+      <div class="col-label">OLD · renderAttention() verbatim</div>
+      <div class="card" style="padding:16px;">
+        <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:650;"><span style="width:8px;height:8px;border-radius:50%;background:#ef4444;"></span>Needs you <span class="mono" style="font-size:9.5px;color:#ef4444;background:#ef444414;border:1px solid #ef444444;padding:1px 8px;border-radius:99px;">3</span></div>
+        <div class="mono" style="font-size:9.5px;color:var(--text-4);margin-top:2px;">your move — oldest first</div>
+        <div class="ns-body">
+          <!-- verbatim .ns-item pattern from L2007-2010 -->
+          <div class="ns-item" style="--ac:#ef4444;">
+            <div class="ns-title">Confirm the Saturday volunteer roster</div>
+            <div class="ns-meta"><span class="t-dot" style="background:#10b981"></span>Community<span style="margin-left:auto">2h · 14m</span></div>
+          </div>
+          <div class="ns-item" style="--ac:#ef4444;margin-top:8px;">
+            <div class="ns-title">Approve the food-stall budget revision</div>
+            <div class="ns-meta"><span class="t-dot" style="background:#f59e0b"></span>Logistics<span style="margin-left:auto">5h · 9m</span></div>
+          </div>
+          <div class="ns-item" style="--ac:#ef4444;margin-top:8px;">
+            <div class="ns-title">Reply to the venue coordinator</div>
+            <div class="ns-meta"><span class="t-dot" style="background:#3b82f6"></span>Venue<span style="margin-left:auto">1d · 22m</span></div>
+          </div>
+        </div>
+        <button class="ns-viewall">view all 3 threads →</button>
+      </div>
+      <div class="mono" style="font-size:10px;color:var(--text-4);margin-top:8px;">stacked cards · hover fan-out · status dot only</div>
+    </div>
+
+    <!-- NEW -->
+    <div>
+      <div class="col-label">NEW · high-bar nudge card</div>
+      <div style="display:flex;flex-direction:column;gap:12px;" id="newStack">
+        <div class="nudge" style="--uc:#ef4444;" tabindex="0">
+          <div class="rail"><span class="u-dot pulse"></span><span class="u-time">2h ago</span></div>
+          <div class="n-body">
+            <div class="n-why"><b>Why now</b> · Priya asked you directly 2h ago and the thread moved on without an answer.</div>
+            <div class="n-title">Confirm the Saturday volunteer roster</div>
+            <div class="n-move"><span style="flex-shrink:0;">→</span><span><b>Suggested move:</b> “Roster looks good — locking it in.” Sends the nudge as-is.</span></div>
+            <div class="n-pills">
+              <button class="n-pill primary" onclick="toast(this)">Send nudge ✓</button>
+              <button class="n-pill" onclick="toast(this)">Open thread →</button>
+              <button class="n-pill" onclick="snooze(this)">Snooze</button>
+            </div>
+          </div>
+        </div>
+        <div class="nudge" style="--uc:#f59e0b;" tabindex="0">
+          <div class="rail"><span class="u-dot"></span><span class="u-time">5h ago</span></div>
+          <div class="n-body">
+            <div class="n-why"><b>Why now</b> · Budget revision is waiting on your approval before Friday orders.</div>
+            <div class="n-title">Approve the food-stall budget revision</div>
+            <div class="n-move"><span style="flex-shrink:0;">→</span><span><b>Suggested move:</b> “Approved up to ₹8k — go ahead.” One tap, no typing.</span></div>
+            <div class="n-pills">
+              <button class="n-pill primary" onclick="toast(this)">Send nudge ✓</button>
+              <button class="n-pill" onclick="toast(this)">Open thread →</button>
+              <button class="n-pill" onclick="snooze(this)">Snooze</button>
+            </div>
+          </div>
+        </div>
+        <div class="nudge" style="--uc:#3b82f6;" tabindex="0">
+          <div class="rail"><span class="u-dot"></span><span class="u-time">1d ago</span></div>
+          <div class="n-body">
+            <div class="n-why"><b>Why now</b> · Venue coordinator followed up twice; a 5-word reply unblocks the booking.</div>
+            <div class="n-title">Reply to the venue coordinator</div>
+            <div class="n-move"><span style="flex-shrink:0;">→</span><span><b>Suggested move:</b> “Saturday 4pm works — confirm it.”</span></div>
+            <div class="n-pills">
+              <button class="n-pill primary" onclick="toast(this)">Send nudge ✓</button>
+              <button class="n-pill" onclick="toast(this)">Open thread →</button>
+              <button class="n-pill" onclick="snooze(this)">Snooze</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mono" style="font-size:10px;color:var(--text-4);margin-top:8px;">keys: <span class="kbd">J</span>/<span class="kbd">K</span> move · <span class="kbd">A</span> send · <span class="kbd">S</span> snooze</div>
+    </div>
+  </div>
+
+  <div class="check mono">
+    <span><b>✓</b> contrast AA (body 12px+ on --bg-elev)</span>
+    <span><b>✓</b> 1-line CTA per card: “Send nudge ✓”</span>
+    <span><b>✓</b> reduced-motion: rail pulse disabled</span>
+  </div>
+</div>
+<div id="t" class="mono" style="position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;background:var(--text-1);color:var(--bg);font-size:12px;padding:9px 18px;border-radius:99px;transition:all .3s;pointer-events:none;">sent</div>
+<script>
+function setT(t){document.body.className=t;document.getElementById('bL').classList.toggle('on',t==='light');document.getElementById('bD').classList.toggle('on',t==='dark');}
+function toast(el){const t=document.getElementById('t');t.textContent=el.textContent.trim()+' — queued ✓';t.style.opacity=1;t.style.transform='translateX(-50%) translateY(0)';clearTimeout(window._tt);window._tt=setTimeout(()=>{t.style.opacity=0;t.style.transform='translateX(-50%) translateY(20px)';},1600);}
+function snooze(el){const c=el.closest('.nudge');c.style.opacity='.45';toast({textContent:()=>{},});const t=document.getElementById('t');t.textContent='snoozed till tomorrow ✓';t.style.opacity=1;t.style.transform='translateX(-50%) translateY(0)';clearTimeout(window._tt);window._tt=setTimeout(()=>{c.style.opacity=1;t.style.opacity=0;},1600);}
+let si=0;const cards=()=>document.querySelectorAll('#newStack .nudge');
+document.addEventListener('keydown',e=>{const c=cards();if(!c.length)return;
+ if(e.key==='j'||e.key==='J'||e.key==='k'||e.key==='K'){si=(si+(e.key.toLowerCase()==='j'?1:-1)+c.length)%c.length;c.forEach((x,i)=>x.classList.toggle('sel',i===si));c[si].focus();}
+ if(e.key==='a'||e.key==='A'){toast(c[si].querySelector('.primary'));}
+ if(e.key==='s'||e.key==='S'){snooze(c[si].querySelector('.n-pill:last-child'));}});
+</script>
+</body>
+</html>

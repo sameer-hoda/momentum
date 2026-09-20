@@ -46,7 +46,29 @@ load_dotenv(os.path.join(SCRIPT_DIR, '..', 'wa_productivity', '.env'))
 API_KEY = ''  # resolved lazily via ed.get_gemini_key() (env or volume file)
 ME = os.environ.get('OWNER_NAME', '').strip().lower()
 def is_me(name):
-    return bool(ME) and ME in str(name or '').lower()
+    """Owner attribution: match on first name as a whole word (or @mention),
+    not a substring — OWNER_NAME 'sam' must not match 'Samaritan'."""
+    if not ME:
+        return False
+    parts = ME.split()
+    if not parts:
+        return False
+    first = parts[0]
+    low = str(name or '').lower()
+    return bool(re.search(r'(^|\W)' + re.escape(first) + r'(\W|$)', low))
+
+def _mentions_me(body):
+    """Whole-word first-name mention check for message bodies. Shared by
+    the q_to_me flagger and the health-wall friction counter — a substring
+    hit (OWNER_NAME 'sam' inside 'samaritan') is never a mention."""
+    if not ME:
+        return False
+    parts = ME.split()
+    if not parts:
+        return False
+    first = parts[0]
+    return bool(re.search(r'(^|\W)' + re.escape(first) + r'(\W|$)',
+                          str(body or '').lower()))
 
 STATE_FILE   = os.path.join(SCRIPT_DIR, 'pipeline_state.json')
 OUTPUT_FILE  = os.path.join(SCRIPT_DIR, 'frontend', 'frontend_data.json')
@@ -103,12 +125,27 @@ def client():
 LLM_TIMEOUT = 90  # seconds — genai can hang forever on network issues
 
 def ask(prompt, model=EXTRACT_MODEL):
-    """generate_content with a hard timeout; raises on failure/hang."""
-    import concurrent.futures as cf
+    """generate_content with a REAL hard timeout. The old ThreadPoolExecutor
+    .result(timeout=...) pattern cannot interrupt a wedged socket read, so a
+    hung call pinned the whole pipeline (two incidents). Daemon thread +
+    join(timeout) guarantees forward progress: on timeout the caller gets an
+    exception and falls back (heuristic path), the wedged thread dies with
+    the process. Fail-open everywhere, hang nowhere."""
+    import threading
+    holder = {}
     def _call():
-        return client().models.generate_content(model=model, contents=prompt)
-    with cf.ThreadPoolExecutor(1) as ex:
-        return ex.submit(_call).result(timeout=LLM_TIMEOUT)
+        try:
+            holder['resp'] = client().models.generate_content(model=model, contents=prompt)
+        except Exception as e:
+            holder['err'] = e
+    th = threading.Thread(target=_call, daemon=True)
+    th.start()
+    th.join(timeout=LLM_TIMEOUT)
+    if th.is_alive():
+        raise TimeoutError(f"LLM call exceeded {LLM_TIMEOUT}s")
+    if 'err' in holder:
+        raise holder['err']
+    return holder['resp']
 
 def log(m): print(m, flush=True)
 
@@ -122,7 +159,9 @@ def slug(s):
     return re.sub(r'[^a-z0-9]+', '-', s.lower()).strip('-')[:48]
 
 # ---------------------------------------------------------------------------
-# 1. FETCH — non-archived groups, theme-mapped only (drops 'other' noise)
+# 1. FETCH — non-archived groups; every group resolves to a theme
+#    (custom map, else keyword classifier, else honest 'other'). Volume is
+#    controlled downstream by the significance gate, not here.
 # ---------------------------------------------------------------------------
 def fetch_messages(days):
     excluded = ed.load_excluded()
@@ -154,9 +193,7 @@ def fetch_messages(days):
         gname = (r['chat_name'] or '').strip()
         if not gname or gname.lower() in excluded:
             continue
-        theme = group_to_theme.get(gname.lower())
-        if not theme:            # unmapped group -> not a key work group
-            continue
+        theme = ed.resolve_theme(gname, group_to_theme)
         sender = ('You' if r['is_from_me']
                   else (ed._jid_to_name(r['sender_jid']) or 'Unknown'))
         body = ed.resolve_mentions(r['content'].strip())
@@ -176,6 +213,8 @@ def _mark_unanswered_questions(msgs):
     """Flag questions aimed at you that got no reply from you within
     UNANSWERED_HOURS. Checked at GROUP level (replies often land in a later
     thread after the 90-min gap would have split it)."""
+    if not ME:
+        return  # no owner configured — nothing can be "aimed at you"
     by_group = {}
     for m in msgs:
         by_group.setdefault(m['group'], []).append(m)
@@ -186,9 +225,7 @@ def _mark_unanswered_questions(msgs):
         for i, m in enumerate(ms):
             if m['from_me'] or '?' not in m['body']:
                 continue
-            low = m['body'].lower()
-            aimed = (bool(ME) and (ME in low or f'@{ME}' in low))
-            if not aimed:
+            if not _mentions_me(m['body']):
                 continue
             answered = any(t > m['ts'] and t - m['ts'] <= datetime.timedelta(hours=UNANSWERED_HOURS)
                            for t in mine_ts)
@@ -228,16 +265,19 @@ def make_thread(group, ms):
             'msgs': ms, 'start': ms[0]['ts'], 'end': ms[-1]['ts']}
 
 def enrich_thread_signals(t):
-    t['nudges'] = sum(1 for m in t['msgs'] if NUDGE_RE.search(m['body']))
-    t['has_ask'] = any(ASK_RE.search(m['body']) or '?' in m['body'] for m in t['msgs'])
+    # Bot-digest text ("any update?", "please review") is automation, not a
+    # human request — it must not mint nudges or ask-signals. Mixed threads
+    # fall back to whatever the HUMAN messages carry.
+    human = [m for m in t['msgs'] if not BOT_RE.search(m['body'])]
+    t['nudges'] = sum(1 for m in human if NUDGE_RE.search(m['body']))
+    t['has_ask'] = any(ASK_RE.search(m['body']) or '?' in m['body'] for m in human)
     t['q_to_me'] = any(m.get('_q_to_me') for m in t['msgs'])
     t['from_me'] = any(m['from_me'] for m in t['msgs'])
 
 def worth_llm(t):
-    """Gate for spending an LLM call. Threads >=3 msgs always processed;
-    tiny threads only when they carry a real-work signal."""
-    if len(t['msgs']) >= 3:
-        return True
+    """Gate for spending an LLM call. EVERY thread must carry a real-work
+    signal (own message, unanswered question to you, nudge, or ask) —
+    size alone never qualifies."""
     return t['from_me'] or t['q_to_me'] or t['nudges'] > 0 or t['has_ask']
 
 def sample_body(msgs, cap=BODY_CAP):
@@ -302,14 +342,34 @@ BAD_FIRST_WORDS = {
     'okay', 'thanks', 'thank', 'the', 'have', 'has', 'had', 'been', 'being',
     'am', 'is', 'are', 'was', 'were', 'will', 'would', 'should', 'could',
     'can', 'may', 'might', 'must', 'do', 'does', 'did', 'a', 'an', 'not',
+    # WH-led questions are raw questions, never verb-first instructions
+    'what', 'when', 'where', 'who', 'whom', 'whose', 'why', 'how', 'which',
+    'whether',
+    # greetings / reactions / acks are never action items
+    'hey', 'hi', 'hello', 'happy', 'good', 'great', 'congrats',
+    'congratulations', 'welcome', 'lol', 'haha', 'hehe', 'nice', 'cool',
+    'awesome', 'perfect', 'noted', 'sure', 'fyi',
 }
 GOOD_ED = {'need', 'feed', 'embed', 'proceed', 'succeed', 'exceed'}
+# irregular past tense — narration, not an instruction ("sent" vs "send").
+# Each entry's present-tense twin stays valid; none of these leads an
+# imperative, so rejecting them costs no recall.
+IRREG_PAST = {
+    'sent', 'went', 'came', 'said', 'told', 'got', 'took', 'saw', 'knew',
+    'made', 'found', 'heard', 'wrote', 'gave', 'kept', 'left', 'felt',
+    'thought', 'met', 'became', 'chose', 'spoke',
+}
 
 def item_ok(what):
-    first = what.split()[0].lower().rstrip('.,!?;:\'"')
+    words = what.split()
+    if len(words) < 2:   # a lone token is never a verb-first instruction
+        return False
+    if not re.search(r'[^\W_]', what):   # no letter at all: emoji/punct/digits
+        return False
+    first = words[0].lower().rstrip('.,!?;:\'"')
     if JUNK_URL_RE.search(what) or QUOTED_Q_RE.match(what):
         return False
-    if first in BAD_FIRST_WORDS:
+    if first in BAD_FIRST_WORDS or first in IRREG_PAST:
         return False
     if first.endswith('ed') and first not in GOOD_ED:   # past-tense narration
         return False
@@ -356,17 +416,40 @@ def extract_thread(t, theme_label):
     except Exception:
         return heuristic_extract(t)
 
+# signal-free one-liners that merely react — never tasks. Kept narrow
+# (short + reaction-opener + no request markers anywhere): a 4-word
+# "Looks like we should rollback" still passes through.
+REACTION_RE = re.compile(
+    r'^(looks(\s+(great|good|nice|amazing|awesome))?|\+ ?1|same here|well said)\b',
+    re.I)
+
 def heuristic_extract(t):
+    if t['msgs'] and all(BOT_RE.search(m['body']) for m in t['msgs']):
+        return None  # automated digest, never a human ask
+    if (not t['has_ask'] and not t['nudges'] and not t['q_to_me']
+            and len(t['msgs'][-1]['body'].split()) <= 3
+            and REACTION_RE.search(t['msgs'][-1]['body'].strip())):
+        return None  # pure reaction ("Looks great"), not work
     bodies = ' '.join(m['body'] for m in t['msgs'])
     last = t['msgs'][-1]
     status = ed.extract_status(bodies, len(t['msgs']))
     st = {'blocked': 'blocked', 'completed': 'done'}.get(status, 'open')
+    # 'ask' only on an explicit ask/nudge/directed-question signal — a bare
+    # '?' (FYI/quoted questions) is not enough; default to 'update'
+    has_ask_signal = (any(ASK_RE.search(m['body']) for m in t['msgs'])
+                      or t['nudges'] > 0 or t['q_to_me'])
     item = {
-        'kind': 'ask' if (t['has_ask'] or t['nudges']) else 'update',
+        'kind': 'ask' if has_ask_signal else 'update',
         'what': last['body'][:60] or t['group'],
         'context': last['body'][:140],
         'owner': '', 'requester': '', 'due': '',
-        'status': st, 'sameer_involved': bool(t['q_to_me'] or t['from_me']),
+        # The heuristic path cannot attribute direction, so only the signal
+        # that is definitionally aimed at the user counts — an unanswered
+        # question mentioning them. Mere own-messages (asks to others,
+        # banter) must not self-flag, or every thread the user spoke in
+        # becomes "Needs you". The task itself is still emitted (recall
+        # kept); only the needs-you flag stays conservative.
+        'status': st, 'sameer_involved': bool(t['q_to_me']),
         'topic': 'general',
     }
     norm = normalize_item(item)
@@ -378,17 +461,31 @@ def heuristic_extract(t):
 # 4. MERGE — embedding dedupe within theme -> MECE tasks
 # ---------------------------------------------------------------------------
 def embed_texts(texts):
+    """Embedding dedupe is best-effort: ANY failure or slowness fails OPEN to
+    no-merge (duplicate cards) rather than hanging the whole pipeline. The
+    executor thread is daemonized so a wedged socket read can't pin the run;
+    the timeout+CircuitBreaker below guarantees forward progress."""
     if not texts:
         return []
     try:
+        from concurrent.futures import ThreadPoolExecutor as TPE
+        import threading
+        holder = {}
         def _call():
-            return client().models.embed_content(model=EMBED_MODEL, contents=texts)
-        ex = ThreadPoolExecutor(1)
-        try:
-            resp = ex.submit(_call).result(timeout=LLM_TIMEOUT)
-        finally:
-            ex.shutdown(wait=False, cancel_futures=True)
-        return [e.values for e in resp.embeddings]
+            try:
+                holder['resp'] = client().models.embed_content(model=EMBED_MODEL, contents=texts)
+            except Exception as e:
+                holder['err'] = e
+        th = threading.Thread(target=_call, daemon=True)
+        th.start()
+        th.join(timeout=LLM_TIMEOUT)
+        if th.is_alive():
+            log(f"  embed timed out after {LLM_TIMEOUT}s, skipping merge (fail-open)")
+            return None
+        if 'err' in holder:
+            log(f"  embed failed ({type(holder['err']).__name__}), skipping merge")
+            return None
+        return [e.values for e in holder['resp'].embeddings]
     except Exception as e:
         log(f"  embed failed ({type(e).__name__}), skipping merge")
         return None
@@ -856,6 +953,57 @@ STATE_LABELS = {
     'done': 'Done',
 }
 
+CHASE_DAYS = 6    # chased this recently => still alive, keep on default board
+FRESH_DAYS = 1    # seen in the last day => new and unjudged, keep on default board
+TINY_MSGS = 2     # threads this small with no signal are reactions, not work
+
+FYI_RE = re.compile(r'^(fwd?|fyi)\b', re.I)
+
+def assess_significance(t):
+    """Default-board gate: (keep: bool, reason: str), first match wins.
+
+    Recall-first — anything addressed to the user is always kept, and
+    stuck (blocked) work is always kept. Everything else must show
+    freshness, chase, or substance. Demoted tasks stay in the export
+    under `demoted_tasks` (flagged, recoverable); only extraction-level
+    noise (bot digests, reactions) is hard-dropped upstream."""
+    if t.get('needs_my_action') or t.get('waiting_on'):
+        return (True, 'addressed-to-user')
+    if t.get('status') == 'blocked':
+        return (True, 'stuck-needs-attention')
+    if t.get('status') == 'completed':
+        return (False, 'done-history')
+    if (t.get('kind') == 'update' and (t.get('nudges') or 0) == 0
+            and (FYI_RE.search(t.get('title') or '')
+                 or FYI_RE.search(t.get('one_liner') or ''))):
+        return (False, 'fyi-forward')
+    if (t.get('kind') == 'update' and (t.get('nudges') or 0) == 0
+            and any(BOT_RE.search(m.get('body') or '')
+                    for m in t.get('messages') or [])):
+        return (False, 'bot-context')
+    if (t.get('kind') == 'update' and (t.get('msg_count') or 0) <= TINY_MSGS
+            and (t.get('nudges') or 0) == 0):
+        return (False, 'tiny-no-signal')
+    if t.get('stale') and (t.get('nudges') or 0) == 0:
+        return (False, 'stale-quiet')
+    if (t.get('nudges') or 0) > 0 and (t.get('age_days') or 0) <= CHASE_DAYS:
+        return (True, 'being-chased')
+    if (t.get('age_days') or 0) <= FRESH_DAYS and t.get('kind') != 'update':
+        return (True, 'new-and-unjudged')
+    # a week of silence with no chase is old, whatever the stale flag says
+    return (False, 'quiet-old' if (t.get('age_days') or 0) >= 7
+            else 'low-signal')
+
+def split_significant(tasks):
+    """Stamp every task and split the default board from the demoted shelf."""
+    keep, demoted = [], []
+    for t in tasks:
+        sig, reason = assess_significance(t)
+        t['significant'] = bool(sig)
+        t['significance_reason'] = reason
+        (keep if sig else demoted).append(t)
+    return keep, demoted
+
 def derive_state(t):
     """Exactly one primary state per task, priority-ordered:
     your move > stuck > their move > moving > silent > finished."""
@@ -997,7 +1145,7 @@ def build_health_wall():
     parsed = []
     for r in rows:
         gname = (r['chat_name'] or '').strip()
-        if not gname or gname.lower() in excluded or not group_to_theme.get(gname.lower()):
+        if not gname or gname.lower() in excluded:
             continue
         body = ed.resolve_mentions(r['content'].strip())
         if BOT_RE.search(body):
@@ -1017,7 +1165,7 @@ def build_health_wall():
             day['nudges'] += 1
         if RESOLUTION_RE.search(m['body']):
             day['resolutions'] += 1
-        if not m['from_me'] and '?' in m['body'] and ME and ME in m['body'].lower():
+        if not m['from_me'] and '?' in m['body'] and _mentions_me(m['body']):
             pending_qs.append(m)
 
     # a question counts as unanswered if no message from you within 48h after
@@ -1085,9 +1233,86 @@ def build_group_jid_map():
         log(f"group_jids map failed: {e}")
         return {}
 
+def publish_partial(extracted, threads, msgs, theme_meta, state, done, total):
+    """Progressive board snapshot: tasks from extracted-so-far, no merge pass
+    (speed over dedupe for the preview — the final write replaces it). Atomic
+    write + partial:true + progress so the UI renders immediately and refines
+    live. Never throws (caller guards too)."""
+    by_key = {t['key']: t for t in threads}
+    cands = []
+    for key, d in extracted.items():
+        t = by_key.get(key)
+        if t and d and d.get('items'):
+            cands.append({'theme': t['theme'], 'thread': t, **d})
+    # fast path: one task per candidate (skip embedding merge for preview)
+    tasks = []
+    for c in cands:
+        try:
+            tasks.append(build_task(c['theme'], [c]))
+        except Exception:
+            continue
+    for t in tasks:
+        t['state'] = derive_state(t)
+        t['theme_label'] = theme_meta.get(t['theme'], {}).get('label', t['theme'])
+    tasks.sort(key=lambda t: (STATE_RANK[t['state']], t['age_days']))
+    tasks, demoted_tasks = split_significant(tasks)
+    out = {
+        'exported_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        'partial': True,
+        'progress': {'done': done, 'total': total},
+        'window_days': TASK_WINDOW_DAYS,
+        'total_groups': len({m['group'] for m in msgs}),
+        'total_messages': len(msgs),
+        'total_tasks': len(tasks),
+        'tasks': tasks,
+        'demoted_tasks': demoted_tasks,
+        'total_demoted': len(demoted_tasks),
+        'group_jids': {},
+        'map': build_map(tasks, theme_meta),
+        'health_wall': None,
+        'bulletins': [],
+        'days': [],
+        'week': None,
+    }
+    import tempfile
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(OUTPUT_FILE) or '.',
+                                        prefix='.frontend_data.', suffix='.tmp')
+    try:
+        with os.fdopen(tmp_fd, 'w') as f:
+            json.dump(out, f, indent=1, default=str)
+        os.replace(tmp_path, OUTPUT_FILE)
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+    save_state(state)
+    log(f"  partial board: {len(tasks)} tasks ({done}/{total} threads)")
+
+
 def main():
     state = load_state()
     state.pop('threads', None)          # drop legacy v2 cache
+    hb = {'phase': 'starting', 'done': 0, 'total': 0, 'ts': ''}
+    def heartbeat(phase, done=0, total=0):
+        """Progress beacon the API + UI read live (G5 spec). Never throws."""
+        try:
+            hb.update({'phase': phase, 'done': done, 'total': total,
+                       'ts': datetime.datetime.now(datetime.timezone.utc).isoformat()})
+            with open(os.path.join(STORE_DIR, 'build_heartbeat.json'), 'w') as f:
+                json.dump(hb, f)
+        except Exception:
+            pass
+    # STORE_DIR for the heartbeat: build_data runs with cwd=app/, data may live
+    # in ../local-store (local) or /data/store (Railway) — resolve like export_data.
+    try:
+        STORE_DIR = os.environ.get('STORE_DIR') or os.path.normpath(
+            os.path.join(SCRIPT_DIR, '..', 'local-store')
+            if os.path.isdir(os.path.join(SCRIPT_DIR, '..', 'local-store'))
+            else os.path.join(os.path.dirname(SCRIPT_DIR), 'store-fallback'))
+    except Exception:
+        STORE_DIR = os.path.join(os.path.dirname(SCRIPT_DIR), 'store-fallback')
+    heartbeat('fetch')
     msgs, theme_meta = fetch_messages(TASK_WINDOW_DAYS)
     threads = cluster_threads(msgs)
 
@@ -1109,6 +1334,7 @@ def main():
 
     if todo and client():
         done = 0
+        heartbeat('extract', 0, len(todo))
         with ThreadPoolExecutor(MAX_PARALLEL) as ex:
             futs = {ex.submit(extract_thread, t, theme_meta.get(t['theme'], {}).get('label', t['theme'])): t
                     for t in todo}
@@ -1118,9 +1344,18 @@ def main():
                 done += 1
                 if done % 25 == 0:
                     log(f"  extracted {done}/{len(todo)}")
+                    heartbeat('extract', done, len(todo))
                 if data:
                     extracted[t['key']] = data
                     cache[t['key']] = {'end': t['end'].isoformat(), 'items': data['items']}
+                # progressive board: publish a partial snapshot every 100 threads
+                # so the UI renders NOW and fills in live (no waiting for 983)
+                if done % 100 == 0:
+                    try:
+                        publish_partial(extracted, threads, msgs, theme_meta, state,
+                                        done, len(todo))
+                    except Exception as e:
+                        log(f"  partial publish skipped ({type(e).__name__})")
     elif todo:  # no API key -> heuristic
         for t in todo:
             data = heuristic_extract(t)
@@ -1136,6 +1371,7 @@ def main():
             cands.append({'theme': t['theme'], 'thread': t, **d})
     total_items = sum(len(c['items']) for c in cands)
     log(f"Candidates with actionable items: {len(cands)} ({total_items} atomic items)")
+    heartbeat('merge', len(cands), len(cands))
 
     tasks = merge_candidates(cands)
     before = len(tasks)
@@ -1144,9 +1380,11 @@ def main():
 
     # cross-chat completion check for stale open items (>= STALE_DAYS silent):
     # completions often land in another thread/group than the original ask
+    heartbeat('reconcile', 0, len(tasks))
     tasks, dropped_ids = reconcile_stale(tasks, msgs, state)
     if dropped_ids:
         log(f"  dropped obsolete: {[d.split('::')[-1][:36] for d in dropped_ids[:8]]}")
+    heartbeat('topics', len(tasks), len(tasks))
 
     # MECE thread-health state + ordering
     tasks = tag_topics(tasks, theme_meta, state)
@@ -1159,12 +1397,23 @@ def main():
         state_counts[t['state']] = state_counts.get(t['state'], 0) + 1
     log(f"Tasks: {before} -> {len(tasks)} | states: {state_counts}")
 
+    # significance cut: human-scale default board, demoted shelf recoverable
+    tasks, demoted_tasks = split_significant(tasks)
+    sig_counts = {}
+    for t in demoted_tasks:
+        sig_counts[t['significance_reason']] = sig_counts.get(t['significance_reason'], 0) + 1
+    log(f"Significance: {len(tasks)} default board, {len(demoted_tasks)} demoted {sig_counts}")
+
     atlas = build_map(tasks, theme_meta)
     wall = build_health_wall()
 
+    heartbeat('digests', 0, 3)
     bulletins = build_bulletins(msgs, state)
+    heartbeat('digests', 1, 3)
     days = build_days(msgs, state, theme_meta)
+    heartbeat('digests', 2, 3)
     week = build_week(days, msgs, state, theme_meta)
+    heartbeat('write', len(tasks), len(tasks))
 
     out = {
         'exported_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -1173,6 +1422,8 @@ def main():
         'total_messages': len(msgs),
         'total_tasks': len(tasks),
         'tasks': tasks,
+        'demoted_tasks': demoted_tasks,
+        'total_demoted': len(demoted_tasks),
         'group_jids': build_group_jid_map(),
         'map': atlas,
         'health_wall': wall,
@@ -1180,8 +1431,20 @@ def main():
         'days': days,
         'week': week,
     }
-    json.dump(out, open(OUTPUT_FILE, 'w'), indent=1, default=str)
+    import tempfile
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(OUTPUT_FILE) or '.',
+                                        prefix='.frontend_data.', suffix='.tmp')
+    try:
+        with os.fdopen(tmp_fd, 'w') as f:
+            json.dump(out, f, indent=1, default=str)
+        os.replace(tmp_path, OUTPUT_FILE)  # atomic: readers never see half a file
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
     save_state(state)
+    heartbeat('done', len(tasks), len(tasks))
     log(f"Wrote {OUTPUT_FILE} — {len(tasks)} tasks, {len(atlas)} map nodes, unblock score {wall['score']}")
 
 if __name__ == '__main__':

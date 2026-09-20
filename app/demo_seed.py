@@ -1,5 +1,5 @@
 """Synthetic demo workspace — same schema as build_data.py output, zero PII."""
-import datetime, json, random
+import datetime, json, os, random
 
 PEOPLE = ['Alex Morgan', 'Priya Nair', 'Rohan Mehta', 'Sara Iqbal',
           'Dev Patel', 'Neha Rao', 'Kiran Das', 'Anika Shah']
@@ -77,6 +77,21 @@ MSGS = [
 
 
 def write(path):
+    # Trust interlock: dummy data must never reach the live board. Refuse the
+    # live snapshot path unless DEMO_MODE=1 (empty state > dummy data).
+    if os.environ.get('DEMO_MODE', '0') != '1':
+        try:
+            live = os.path.realpath(os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                'frontend', 'frontend_data.json'))
+            if os.path.realpath(path) == live:
+                raise RuntimeError(
+                    'demo_seed.write refused: live board path outside '
+                    'DEMO_MODE=1 — show the empty state, never dummy data')
+        except RuntimeError:
+            raise
+        except Exception:
+            pass
     rng = random.Random(7)
     now = datetime.datetime.now(datetime.timezone.utc)
     tasks, groups_seen, ti = [], set(), 0

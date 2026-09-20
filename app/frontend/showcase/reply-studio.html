@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reply Studio — OLD vs NEW · Momentum Showcase</title>
+<style>
+  :root { --font-ui:'Inter',system-ui,sans-serif; --font-serif:'Instrument Serif',Georgia,serif; --font-mono:'JetBrains Mono',ui-monospace,monospace;
+    --hue-1:262; --hue-2:222; --ease-spring:cubic-bezier(.22,1,.36,1); --ease-out:cubic-bezier(.16,1,.3,1); }
+  .light { --bg:#f7f7f5; --bg-elev:#fff; --bg-sunken:#f0efec; --bg-inset:#e9e8e4; --border:#e7e5e0; --border-soft:#f0eeea;
+    --text-1:#1c1917; --text-2:#57534e; --text-3:#a29d97; --text-4:#d6d3cd;
+    --accent:hsl(var(--hue-1) 70% 52%); --accent-soft:hsl(var(--hue-1) 70% 52% / .09);
+    --card-shadow:0 1px 2px rgba(28,25,23,.04),0 4px 16px -4px rgba(28,25,23,.05);
+    --card-shadow-hover:0 2px 4px rgba(28,25,23,.06),0 16px 40px -12px rgba(28,25,23,.14);
+    --glass:rgba(255,255,255,.82); --aurora-opacity:.5; }
+  .dark { --bg:#09090c; --bg-elev:#121217; --bg-sunken:#0e0e13; --bg-inset:#17171d;
+    --border:#24242b; --border-soft:#1b1b21; --text-1:#f4f4f5; --text-2:#a1a1aa; --text-3:#5b5b66; --text-4:#3f3f49;
+    --accent:hsl(var(--hue-1) 85% 68%); --accent-soft:hsl(var(--hue-1) 85% 68% / .13);
+    --card-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 4px 16px -4px rgba(0,0,0,.45);
+    --card-shadow-hover:0 1px 0 rgba(255,255,255,.05) inset,0 20px 48px -12px rgba(0,0,0,.65);
+    --glass:rgba(15,15,19,.82); --aurora-opacity:.42; }
+  * { font-family:var(--font-ui); -webkit-font-smoothing:antialiased; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text-1); margin:0; min-height:100vh; transition:background .4s; }
+  .aurora{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;}
+  .aurora i{position:absolute;border-radius:50%;filter:blur(100px);opacity:var(--aurora-opacity);}
+  .aurora .b1{width:44vw;height:44vw;top:-16vw;left:30vw;background:radial-gradient(circle at 40% 40%,hsl(var(--hue-1) 80% 60%/.26),transparent 65%);}
+  .card{background:var(--bg-elev);border:1px solid var(--border);border-radius:16px;box-shadow:var(--card-shadow);}
+  .mono{font-family:var(--font-mono);} .serif-accent{font-family:var(--font-serif);font-style:italic;}
+  .kbd{font-family:var(--font-mono);font-size:10px;color:var(--text-3);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:2px 5.5px;background:var(--bg-elev);white-space:nowrap;}
+  /* ---- verbatim OLD studio styles (L667-748, condensed) ---- */
+  .studio{border:1px solid var(--border);border-radius:16px;background:var(--bg-elev);overflow:hidden;}
+  .studio-head{display:flex;align-items:center;gap:8px;padding:12px 14px 0;}
+  .studio-label{font-family:var(--font-serif);font-style:italic;font-size:14px;color:var(--text-1);}
+  .mode-pill{display:inline-flex;align-items:center;gap:5px;font-size:9px;font-weight:700;letter-spacing:.08em;padding:2.5px 8px;border-radius:99px;margin-left:auto;color:hsl(38 90% 40%);background:hsl(38 90% 50%/.1);border:1px solid hsl(38 90% 50%/.3);}
+  .studio-hint{margin:10px 14px 0;position:relative;}
+  .studio-hint input{width:100%;font-size:12.8px;color:var(--text-1);background:var(--bg-sunken);border:1px solid var(--border-soft);border-radius:11px;padding:9px 12px 9px 32px;outline:none;}
+  .intent-row{display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px 0;}
+  .intent-chip{font-size:11px;font-weight:550;padding:5px 11px;border-radius:99px;cursor:pointer;border:1px solid var(--border);color:var(--text-3);background:var(--bg-elev);}
+  .intent-chip.on{background:var(--text-1);color:var(--bg);border-color:var(--text-1);}
+  .gen-btn{display:flex;align-items:center;justify-content:center;gap:7px;margin:10px 14px 0;padding:9px;border-radius:11px;cursor:pointer;font-size:12.5px;font-weight:600;color:#fff;border:none;width:calc(100% - 28px);background:linear-gradient(135deg,hsl(var(--hue-1) 72% 56%),hsl(var(--hue-2) 78% 56%));}
+  .send-row{display:flex;align-items:center;gap:8px;padding:12px 14px 13px;}
+  .send-copy-btn{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:8px 13px;border-radius:10px;cursor:pointer;border:1px solid var(--border);background:var(--bg-elev);color:var(--text-3);}
+  .send-btn{display:flex;align-items:center;gap:7px;margin-left:auto;font-size:12.5px;font-weight:600;color:#fff;padding:8px 18px;border-radius:10px;cursor:pointer;border:none;background:linear-gradient(135deg,hsl(var(--hue-1) 72% 56%),hsl(var(--hue-2) 78% 56%));}
+  /* ---- NEW tap-first studio ---- */
+  .tap{border:1px solid var(--border);border-radius:16px;background:var(--bg-elev);box-shadow:var(--card-shadow);overflow:hidden;}
+  .tap-head{display:flex;align-items:center;gap:9px;padding:14px 16px 0;}
+  .tap-head .who{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#3b82f6);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .bubble{margin:11px 16px 0;max-width:88%;padding:10px 13px;border-radius:4px 14px 14px 14px;font-size:13px;line-height:1.55;cursor:pointer;
+    background:var(--bg-sunken);border:1px solid var(--border-soft);color:var(--text-1);transition:all .25s var(--ease-spring);position:relative;}
+  .bubble:hover{transform:translateY(-1px);box-shadow:var(--card-shadow);}
+  .bubble.sel{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 45%,transparent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent);}
+  .bubble .b-tag{position:absolute;top:-8px;left:10px;font-size:8.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:var(--text-1);color:var(--bg);padding:1.5px 8px;border-radius:99px;}
+  .bubble .b-edit{position:absolute;bottom:6px;right:9px;font-size:10.5px;color:var(--text-4);cursor:pointer;}
+  .bubble .b-edit:hover{color:var(--text-1);}
+  .ctx3{display:flex;gap:6px;padding:12px 16px 0;flex-wrap:wrap;}
+  .ctx3 button{font-size:11.5px;font-weight:600;padding:6px 13px;border-radius:99px;cursor:pointer;border:1px solid var(--border);background:var(--bg-elev);color:var(--text-2);transition:all .2s var(--ease-spring);}
+  .ctx3 button.on,.ctx3 button:hover{background:var(--text-1);color:var(--bg);border-color:var(--text-1);}
+  .approve{display:flex;gap:8px;padding:13px 16px 15px;align-items:center;flex-wrap:wrap;}
+  .ap-btn{font-size:12.5px;font-weight:650;padding:9px 18px;border-radius:11px;cursor:pointer;border:1px solid var(--border);background:var(--text-1);color:var(--bg);transition:all .22s var(--ease-spring);}
+  .ap-btn:hover{transform:translateY(-1px);filter:brightness(1.06);}
+  .ap-btn:active{transform:scale(.97);}
+  .ap-ghost{background:transparent;color:var(--text-2);border:1px solid var(--border);}
+  .ap-ghost:hover{color:var(--text-1);border-color:var(--text-4);box-shadow:var(--card-shadow);}
+  .outbox{margin:0 16px 15px;padding:10px 13px;border-radius:11px;border:1px dashed var(--border);background:var(--bg-sunken);font-size:11.5px;color:var(--text-2);display:flex;gap:9px;align-items:center;}
+  .outbox .q{width:8px;height:8px;border-radius:50%;background:#f59e0b;flex-shrink:0;animation:upulse 2s infinite;}
+  @keyframes upulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .col-label{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:2px;}
+  .check{border-top:1px solid var(--border-soft);margin-top:26px;padding:14px 4px 30px;display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--text-3);}
+  .check b{color:#10b981;}
+  .tgl{position:fixed;top:14px;right:14px;z-index:50;display:flex;gap:6px;background:var(--glass);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:99px;padding:4px;}
+  .tgl button{border:none;background:transparent;color:var(--text-3);font-size:12px;font-weight:600;padding:6px 14px;border-radius:99px;cursor:pointer;}
+  .tgl button.on{background:var(--text-1);color:var(--bg);}
+  @media (max-width:900px){.split{grid-template-columns:1fr !important;}}
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important;}}
+</style>
+</head>
+<body class="light">
+<div class="aurora"><i class="b1"></i></div>
+<div class="tgl"><button id="bL" class="on" onclick="setT('light')">Light</button><button id="bD" onclick="setT('dark')">Dark</button></div>
+
+<div style="max-width:1120px;margin:0 auto;padding:56px 22px 0;">
+  <div class="mono" style="font-size:10.5px;letter-spacing:.12em;color:var(--text-3);text-transform:uppercase;">Momentum showcase · reply-studio.html</div>
+  <h1 style="font-size:30px;letter-spacing:-.03em;margin:8px 0 4px;">Replies you <span class="serif-accent" style="font-weight:400;">approve, not compose.</span></h1>
+  <p style="font-size:13.5px;color:var(--text-2);max-width:62ch;line-height:1.6;margin:0 0 22px;">OLD asks for a hint, then intent chips, then Draft, then send — four typing moments. NEW opens with <b>2 ready bubbles</b> to tap-approve, 3 contextual intents, and an Approve → Send / Copy / Tweak row with a queued-outbox offline state.</p>
+
+  <div class="split" style="display:grid;grid-template-columns:1fr 1.15fr;gap:20px;align-items:start;">
+    <div>
+      <div class="col-label">OLD · renderStudio() verbatim</div>
+      <!-- verbatim renderStudio pattern L2695-2719, static -->
+      <div class="studio">
+        <div class="studio-head"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;display:inline-block;"></span><span class="studio-label">Reply studio</span><span class="mode-pill">TEST · DRY-RUN</span></div>
+        <div class="studio-hint"><input placeholder="What do you want to convey? (optional)" /></div>
+        <div class="intent-row">
+          <span class="intent-chip on">nudge</span><span class="intent-chip">escalate</span><span class="intent-chip">status ask</span><span class="intent-chip">align</span><span class="intent-chip">share update</span><span class="intent-chip">unblock</span><span class="intent-chip">close loop</span>
+        </div>
+        <button class="gen-btn">✦ Draft replies</button>
+        <div style="padding:12px 14px 4px;font-size:11px;color:var(--text-4);" class="mono">…then drafts appear in a rail, then textarea, then:</div>
+        <div class="send-row"><span class="mono" style="font-size:10px;color:var(--text-4);">0 chars</span><button class="send-copy-btn">⧉ Copy instead</button><button class="send-btn">➤ Send</button></div>
+      </div>
+      <div class="mono" style="font-size:10px;color:var(--text-4);margin-top:8px;">hint input → 7 intent chips → Draft → send</div>
+    </div>
+
+    <div>
+      <div class="col-label">NEW · tap-first approve flow</div>
+      <div class="tap">
+        <div class="tap-head"><span class="who">P</span>
+          <div><div style="font-size:13px;font-weight:650;">Priya · Demo Group</div><div class="mono" style="font-size:10px;color:var(--text-3);">roster thread · asked you 2h ago</div></div>
+          <span class="mono" style="margin-left:auto;font-size:9px;font-weight:700;letter-spacing:.08em;color:#10b981;background:#10b98114;border:1px solid #10b98144;padding:2.5px 9px;border-radius:99px;">2 READY</span>
+        </div>
+        <div class="bubble sel" onclick="pick(this,0)"><span class="b-tag">Draft A · warm + direct</span>Roster looks good — locking it in tonight. Thanks for pulling it together! 🙏<span class="b-edit" onclick="event.stopPropagation();tweak(this);">tweak ✎</span></div>
+        <div class="bubble" onclick="pick(this,1)"><span class="b-tag">Draft B · brief</span>Looks good, locking it in.<span class="b-edit" onclick="event.stopPropagation();tweak(this);">tweak ✎</span></div>
+        <div class="ctx3"><button class="on" onclick="this.classList.toggle('on')">Soften it</button><button onclick="this.classList.toggle('on')">Add thanks</button><button onclick="this.classList.toggle('on')">Shorter</button></div>
+        <div class="approve">
+          <button class="ap-btn" onclick="sendIt()">Approve → Send</button>
+          <button class="ap-btn ap-ghost" onclick="copyIt()">Copy</button>
+          <button class="ap-btn ap-ghost" onclick="tweak()">Tweak</button>
+          <span class="mono" id="stat" style="font-size:10px;color:var(--text-4);margin-left:auto;">42 chars · context attached</span>
+        </div>
+        <div class="outbox" id="ob" style="display:none;"><span class="q"></span><span><b>Queued in outbox</b> — bridge offline, will send when reconnected. <u style="cursor:pointer;" onclick="document.getElementById('ob').style.display='none'">dismiss</u></span></div>
+        <div id="ed" style="display:none;margin:0 16px 15px;"><textarea id="et" style="width:100%;min-height:64px;border-radius:12px;border:1px solid var(--border);background:var(--bg-sunken);color:var(--text-1);padding:11px 13px;font-size:13px;outline:none;">Roster looks good — locking it in tonight. Thanks for pulling it together! 🙏</textarea></div>
+      </div>
+      <div class="mono" style="font-size:10px;color:var(--text-4);margin-top:8px;">tap a bubble → Approve → Send / Copy / Tweak · <a href="#" onclick="document.getElementById('ob').style.display='flex';return false;" style="color:var(--text-3);">preview offline outbox</a></div>
+    </div>
+  </div>
+
+  <div class="check mono">
+    <span><b>✓</b> contrast AA (13px bubbles + 12.5px buttons on --bg-elev)</span>
+    <span><b>✓</b> 1-line CTA: “Approve → Send”</span>
+    <span><b>✓</b> reduced-motion: outbox pulse + bubble lift disabled</span>
+  </div>
+</div>
+<div id="t" class="mono" style="position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;background:var(--text-1);color:var(--bg);font-size:12px;padding:9px 18px;border-radius:99px;transition:all .3s;pointer-events:none;">sent</div>
+<script>
+function setT(t){document.body.className=t;document.getElementById('bL').classList.toggle('on',t==='light');document.getElementById('bD').classList.toggle('on',t==='dark');}
+function pick(el,i){document.querySelectorAll('.bubble').forEach(b=>b.classList.remove('sel'));el.classList.add('sel');
+ document.getElementById('stat').textContent=el.textContent.replace('tweak ✎','').trim().length+' chars · context attached';}
+function say(m){const t=document.getElementById('t');t.textContent=m;t.style.opacity=1;t.style.transform='translateX(-50%) translateY(0)';clearTimeout(window._tt);window._tt=setTimeout(()=>{t.style.opacity=0;},1600);}
+function sendIt(){say('approved ✓ — queued to Demo Group');}
+function copyIt(){say('copied to clipboard ⧉');}
+function tweak(){const e=document.getElementById('ed');e.style.display=e.style.display==='none'?'block':'none';}
+</script>
+</body>
+</html>

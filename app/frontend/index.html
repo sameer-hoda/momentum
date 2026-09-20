@@ -177,6 +177,8 @@
   #boot { position:fixed; inset:0; z-index:200; display:flex; align-items:center; justify-content:center;
     background:color-mix(in srgb,var(--bg) 82%,transparent); backdrop-filter:blur(6px); }
   #boot.done { display:none; }
+  /* Paused views (Nudges, Board): hidden from nav until re-enabled. */
+  [data-view="nudges"],[data-view="board"]{display:none!important}
   .boot-card { width:min(480px,92vw); }
   .boot-step { display:flex; align-items:center; gap:10px; padding:8px 0; font-size:13px; color:var(--text-3); }
   .boot-step.on { color:var(--text-1); font-weight:600; }
@@ -193,6 +195,33 @@
     border-radius:12px; padding:14px 8px; margin:12px auto 0; max-width:100%;
     overflow-x:auto; color:var(--text-1); }
   #boot-qr.on { display:block; }
+  #boot-meter { display:none; margin:12px 0 2px; }
+  #boot-meter.on { display:block; }
+  #boot-meter .bm-rail { height:8px; border-radius:99px; background:var(--bg-sunken);
+    border:1px solid var(--border-soft); overflow:hidden; }
+  #boot-meter .bm-fill { height:100%; width:0%; border-radius:99px;
+    background:linear-gradient(90deg,hsl(var(--hue-1) 75% 55%),hsl(var(--hue-2,190) 70% 50%));
+    transition:width .6s var(--ease-out); }
+  #boot-meter .bm-row { display:flex; justify-content:space-between; align-items:baseline;
+    margin-top:7px; font-size:12px; color:var(--text-2); }
+  #boot-meter .bm-num { font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+    font-size:12.5px; color:var(--text-1); font-weight:650; }
+  #boot-meter .bm-rate { font-family:var(--font-mono); font-size:11px; color:var(--text-3); }
+  #boot-meter .bm-stall { color:#f59e0b; font-size:11px; margin-top:4px; display:none; }
+  #boot-meter .bm-stall.on { display:block; }
+  /* ---------- qr-sync: hold countdown + qr age ---------- */
+  #boot-sync { display:none; text-align:center; margin:6px 0 2px; }
+  #boot-sync.on { display:block; }
+  #sync-count { font-family:var(--font-mono); font-size:34px; font-weight:700; letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums; color:var(--text-1); line-height:1.1; }
+  #sync-sub { font-size:12px; color:var(--text-2); margin-top:4px; }
+  #sync-sub .mono { font-variant-numeric:tabular-nums; }
+  #qr-age { display:none; text-align:center; font-family:var(--font-mono); font-size:11px;
+    color:var(--text-3); margin-top:8px; font-variant-numeric:tabular-nums; }
+  #qr-age.on { display:block; }
+  #qr-age.stale { color:#b45309; }
+  .dark #qr-age.stale { color:#f59e0b; }
+  #live-eta { font-variant-numeric:tabular-nums; }
   #boot-key .pill-mini{--pc:hsl(var(--hue-1) 75% 55%);font-size:12px;font-weight:650;padding:7px 14px;border-radius:99px;cursor:pointer;
     color:color-mix(in srgb,var(--pc) 72%,var(--text-1));background:color-mix(in srgb,var(--pc) 9%,transparent);border:1px solid color-mix(in srgb,var(--pc) 34%,transparent);
     transition:all .25s var(--ease-spring)}
@@ -865,6 +894,10 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="9.5" y="4" width="5" height="11" rx="1.5"/><rect x="16" y="4" width="5" height="14" rx="1.5"/></svg>
         Board <span class="kbd n-key">3</span>
       </div>
+      <div class="side-nav-item" data-view="nudges" onclick="switchView('nudges')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        Nudges <span class="kbd n-key">4</span>
+      </div>
     </nav>
 
     <div class="side-label sec-label mt-5 mb-1.5 px-2.5" style="margin-bottom:6px">Themes</div>
@@ -989,9 +1022,18 @@
               <div class="sec-label" style="margin-bottom:0">Atlas</div>
               <span class="text-[10.5px] mono" id="atlas-sentence" style="color:var(--text-3)"></span>
             </div>
-            <div class="flex items-center gap-3 flex-wrap" id="atlas-legend"></div>
+            <div class="flex items-center gap-3 flex-wrap">
+              <div class="seg seg-sm" id="atlasSeg">
+                <div class="seg-indicator" id="atlasSegInd"></div>
+                <div class="seg-tab seg-tab-sm active" data-at="map" onclick="setAtlasTab('map')">Map</div>
+                <div class="seg-tab seg-tab-sm" data-at="nudges" onclick="setAtlasTab('nudges')">Nudges<span class="mono" id="atlas-nudge-count" style="font-size:9.5px;opacity:.75"></span></div>
+              </div>
+              <div class="flex items-center gap-3 flex-wrap" id="atlas-legend"></div>
+            </div>
           </div>
-          <div id="atlas-map"></div>          <div class="text-[9.5px] px-4 pl-5 pb-3 hidden sm:block" style="color:var(--text-4)">biggest tile = most going on &middot; redder = needs you sooner &middot; click a tile to open its threads</div>
+          <div id="atlas-map"></div>
+          <div id="atlas-nudges" class="hidden px-4 pl-5 pr-4 pt-1 pb-2"></div>
+          <div class="text-[9.5px] px-4 pl-5 pb-3 hidden sm:block" id="atlas-foot" style="color:var(--text-4)">biggest tile = most going on &middot; redder = needs you sooner &middot; click a tile to open its threads</div>
         </div>
 
         <div class="mb-4 rise" style="animation-delay:.12s" id="attention-section">
@@ -1042,11 +1084,13 @@
         <div class="board-grid rise" style="animation-delay:.06s" id="board-grid"></div>
       </section>
 
+      <section id="view-nudges" class="view-block hidden pt-6"></section>
+
       <footer class="mt-12 pt-5 pb-6 flex items-center justify-between text-[11px] flex-wrap gap-2" style="border-top:1px solid var(--border-soft); color:var(--text-4)">
         <span id="footer-info">Loading…</span>
         <span class="flex items-center gap-3 flex-wrap">
           <span class="hidden sm:flex items-center gap-1.5"><span class="kbd">⌘K</span> search</span>
-          <span class="hidden sm:flex items-center gap-1.5"><span class="kbd">0</span><span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span> views</span>
+          <span class="hidden sm:flex items-center gap-1.5"><span class="kbd">0</span><span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span><span class="kbd">4</span> views</span>
           <span class="hidden sm:flex items-center gap-1.5"><span class="kbd">esc</span> close</span>
         </span>
       </footer>
@@ -1060,7 +1104,17 @@
     <div class="display text-[17px] font-semibold text-center" style="color:var(--text-1)" id="boot-title">Getting your workspace ready…</div>
     <p class="text-[12px] text-center mt-1.5" style="color:var(--text-3)" id="boot-sub">This takes a few minutes on first run.</p>
     <div class="mt-4" id="boot-steps"></div>
+    <div id="boot-sync" aria-live="polite">
+      <div id="sync-count">10</div>
+      <div id="sync-sub">Syncing your chats…</div>
+    </div>
     <pre id="boot-qr"></pre>
+    <div id="qr-age" class="mono" aria-live="polite"></div>
+    <div id="boot-meter" aria-live="polite">
+      <div class="bm-rail"><div class="bm-fill" id="bm-fill"></div></div>
+      <div class="bm-row"><span class="bm-num" id="bm-num">—</span><span class="bm-rate" id="bm-rate"></span></div>
+      <div class="bm-stall" id="bm-stall">No new messages for a while — still connected, waiting on your phone's sync.</div>
+    </div>
     <div id="boot-key" style="display:none;margin-top:12px">
       <div class="field" style="margin-bottom:8px">
         <input id="key-input" type="password" placeholder="Paste Gemini API key (AIza…)" autocomplete="off"
@@ -1093,6 +1147,10 @@
   <div class="tab-item" data-view="board" onclick="switchView('board')">
     <span class="tab-glyph"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="9.5" y="4" width="5" height="11" rx="1.5"/><rect x="16" y="4" width="5" height="14" rx="1.5"/></svg></span>
     <span>Board</span>
+  </div>
+  <div class="tab-item" data-view="nudges" onclick="switchView('nudges')">
+    <span class="tab-glyph"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>
+    <span>Nudges</span>
   </div>
 </nav>
 
@@ -1179,11 +1237,22 @@
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 
-const THEME_ORDER = ['work','product','growth','personal','chats','other'];
+const THEME_ORDER = ['work','product','growth','personal','chats','other','autopay','upi','rupay','wallet_ppi','bbps','ccbp','rewards','branding','gtm_merchant','growth_mtu','comms','p2p','revenue_subscription','cred_pay','bio_auth','win','dms','people','ops','finance'];
 const THEME_META = {
   work:{color:'#3b82f6',label:'Work'}, product:{color:'#8b5cf6',label:'Product'},
   growth:{color:'#10b981',label:'Growth'}, personal:{color:'#f59e0b',label:'Personal'},
-  chats:{color:'#6366f1',label:'Chats'}, other:{color:'#a8a29e',label:'Other'}};
+  chats:{color:'#6366f1',label:'Chats'}, other:{color:'#a8a29e',label:'Other'},
+  autopay:{color:'#3b82f6',label:'Autopay'}, upi:{color:'#10b981',label:'UPI'},
+  rupay:{color:'#059669',label:'RuPay'}, wallet_ppi:{color:'#8b5cf6',label:'Wallet'},
+  bbps:{color:'#0284c7',label:'Bills'}, ccbp:{color:'#6366f1',label:'CCBP'},
+  rewards:{color:'#f59e0b',label:'Rewards'}, branding:{color:'#06b6d4',label:'Brand'},
+  gtm_merchant:{color:'#f97316',label:'Merchants'}, growth_mtu:{color:'#65a30d',label:'Growth'},
+  comms:{color:'#78716c',label:'Comms'}, p2p:{color:'#57534e',label:'P2P'},
+  revenue_subscription:{color:'#eab308',label:'Revenue'}, cred_pay:{color:'#14b8a6',label:'CRED Pay'},
+  bio_auth:{color:'#0ea5e9',label:'Verification'}, win:{color:'#f43f5e',label:'Win'},
+  dms:{color:'#475569',label:'DMs'},
+  people:{color:'#0369a1',label:'People'}, ops:{color:'#64748b',label:'Ops'},
+  finance:{color:'#a16207',label:'Finance'}};
 const STATUS_META = {
   blocked:{color:'#ef4444',label:'Blocked'},
   running:{color:'#3b82f6',label:'In progress'},
@@ -1228,6 +1297,7 @@ function isOwner(n){ n = String(n||''); if(!n) return false;
   return !!(OWNER_LC && n.toLowerCase().includes(OWNER_LC)); }
 let activeSub = null;
 let listGroup = 'time', listSort = 'smart', sortMenuOpen = false;
+let SIG_ONLY = false; try { SIG_ONLY = localStorage.getItem('momentum_sigonly') === '1'; } catch(e) {}
 let tlMode = '3h';
 let cmdkSel = 0, cmdkItems = [];
 let visibleIds = [], selIdx = -1;
@@ -1244,6 +1314,13 @@ let ARCHIVED = {}, OVERRIDES = {};
 try { ARCHIVED = JSON.parse(store.get(ARCH_KEY, '{}')); } catch(e) { ARCHIVED = {}; }
 try { OVERRIDES = JSON.parse(store.get(OVR_KEY, '{}')); } catch(e) { OVERRIDES = {}; }
 function saveArchived() { store.set(ARCH_KEY, JSON.stringify(ARCHIVED)); updateArchBadge(); }
+function updateArchBadge() {
+  const el = $('#archBadge');
+  if (!el) return;
+  const n = Object.keys(ARCHIVED).length;
+  el.textContent = n;
+  el.classList.toggle('on', n > 0);
+}
 function saveOverrides() { store.set(OVR_KEY, JSON.stringify(OVERRIDES)); }
 function effStatus(t) { return OVERRIDES[t.id] || t.status; }
 
@@ -1315,17 +1392,169 @@ async function bootSequence() {
     OWNER_NAME = o.owner||''; OWNER_LC = OWNER_NAME.toLowerCase();
     window.MOMENTUM_OWNER = OWNER_NAME||'You';
   } catch(e) {}
+  // progress tracker: remembers last counts to show rate + stall state
+  let prevMsgs = null, prevTs = 0, stallSince = 0, authFails = 0;
+  const bootT0 = Date.now();
+  const seenMax = { syncing: 0 };
+  // qr-sync hold: scan moment (server stamp wins, else first-seen) + 1s
+  // ticker so the countdown ticks visibly between status polls.
+  let scanAtMs = null, holdMs = 10000, tickAnchor = null, tickTimer = null, lastQrCode = null;
+  const REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Dedicated syncing screen: big countdown + live counts. Rendered both
+  // while syncing and when later stages arrive before the minimum elapsed.
+  function renderHoldScreen(st, holdLeftMs) {
+    const secs = Math.ceil(holdLeftMs / 1000);
+    $('#boot-title').textContent = 'Syncing your chats…';
+    $('#boot-sync').classList.add('on');
+    $('#sync-count').textContent = secs;
+    const msgs = (st && typeof st.messages === 'number')
+      ? `${st.messages.toLocaleString()} messages · ` : '';
+    const rate = (st && typeof st.sync_rate_per_s === 'number' && st.sync_rate_per_s > 0.5)
+      ? `+${Math.round(st.sync_rate_per_s).toLocaleString()}/s · ` : '';
+    $('#sync-sub').innerHTML = `${msgs}${rate}entering your portal in ` +
+      `<span class="mono">~${secs}s</span> — first threads are getting ready.`;
+  }
+  function hideHoldScreen() {
+    const el = $('#boot-sync');
+    if (el) el.classList.remove('on');
+    const t = $('#boot-title');
+    if (t && t.textContent === 'Syncing your chats…')
+      t.textContent = 'Getting your workspace ready…';
+  }
+  function holdRemainingMs(st) {
+    if (typeof st?.sync_hold_remaining_s === 'number')
+      return Math.max(0, Math.round(st.sync_hold_remaining_s * 1000));
+    if (typeof st?.sync_hold_s === 'number') holdMs = st.sync_hold_s * 1000;
+    if (scanAtMs === null) return 0;
+    return Math.max(0, holdMs - (Date.now() - scanAtMs));
+  }
+  function armTick() {
+    if (tickTimer || REDUCED) return;
+    tickTimer = setInterval(() => {
+      if (!tickAnchor) return;
+      const left = Math.max(0, tickAnchor.at + tickAnchor.left - Date.now());
+      const c = $('#sync-count');
+      if (c && $('#boot-sync').classList.contains('on')) c.textContent = Math.ceil(left / 1000);
+    }, 1000);
+  }
+  function stopTick() { if (tickTimer) { clearInterval(tickTimer); tickTimer = null; } }
   for (;;) {
-    let st = null;
-    try { st = await fetch('/api/status').then(r=>r.json()); } catch(e) {}
-    if (st && st.stage === 'ready') { $('#boot').classList.add('done'); loadData(); return; }
+    let st = null, httpOk = false;
+    try { const r = await fetch('/api/status'); httpOk = r.ok; st = await r.json(); } catch(e) {}
+    if (!httpOk || (st && st.error === 'unauthorized')) {
+      authFails++;
+      if (authFails >= 2) { location.href = '/login'; return; }
+      await new Promise(r=>setTimeout(r, 3000)); continue;
+    }
+    authFails = 0;
+    // resolve the scan moment: server stamp first, else the first poll
+    // that is past the QR wait.
+    if (st && st.sync_started_at) {
+      const t = Date.parse(st.sync_started_at);
+      if (!isNaN(t)) scanAtMs = t;
+    } else if (scanAtMs === null && st && st.stage && st.stage !== 'awaiting_qr'
+               && st.stage !== 'awaiting_bridge' && st.stage !== 'awaiting_key'
+               && st.stage !== 'starting') {
+      scanAtMs = Date.now();
+    }
+    if (typeof st?.sync_hold_s === 'number') holdMs = st.sync_hold_s * 1000;
+    let holdLeft = holdRemainingMs(st);
+    if (st && st.stage === 'ready') {
+      // fast sync: hold the syncing screen for the minimum even though
+      // the backend is already done — never skip the ~10s state.
+      if (holdLeft > 0 && scanAtMs !== null) {
+        renderHoldScreen(st, holdLeft);
+        tickAnchor = { at: Date.now(), left: holdLeft }; armTick();
+        await new Promise(r=>setTimeout(r, Math.min(holdLeft, 2000)));
+        continue;
+      }
+      stopTick(); $('#boot').classList.add('done'); loadData(); return;
+    }
+    // progressive board: enter the portal with partial data, but only
+    // AFTER the syncing hold has elapsed — the scan always gets its ~10s.
+    try {
+      const pd = await fetch('frontend_data.json').then(r=>r.ok?r.json():null).catch(()=>null);
+      if (pd && pd.tasks && pd.tasks.length) {
+        if (holdLeft > 0 && st && (st.stage === 'syncing' || st.stage === 'analyzing')) {
+          renderHoldScreen(st, holdLeft);
+          tickAnchor = { at: Date.now(), left: holdLeft }; armTick();
+          await new Promise(r=>setTimeout(r, Math.min(holdLeft, 2000)));
+          continue;
+        }
+        stopTick(); enterLiveMode(pd, st); return;
+      }
+    } catch(e) {}
+    tickAnchor = (st && (st.stage === 'syncing' || st.stage === 'analyzing') && holdLeft > 0)
+      ? { at: Date.now(), left: holdLeft } : null;
+    if (tickAnchor) armTick();
     const idx = st ? (order[st.stage] ?? 0) : 0;
     $('#boot-steps').innerHTML = BOOT_STAGES.map((s,i)=>{
       const cls = st && (i < idx || st.stage==='ready') ? 'ok' : (i===idx ? 'on' : '');
       return `<div class="boot-step ${cls}"><span class="boot-dot"></span>${s[1]}</div>`;
     }).join('');
     const extra = st ? `${st.messages?` · ${st.messages} messages synced`:''}${st.tasks?` · ${st.tasks} threads`:''}` : '';
-    $('#boot-sub').textContent = ((st && st.detail) || 'Working…') + extra;
+    if (st && (st.stage === 'syncing' || st.stage === 'analyzing') && holdLeft > 0)
+      renderHoldScreen(st, holdLeft);
+    else hideHoldScreen();
+    if (!$('#boot-sync').classList.contains('on'))
+      $('#boot-sub').textContent = ((st && st.detail) || 'Working…') + extra;
+    // ---- live progress meter (syncing + analyzing) ----
+    try {
+      const meter = $('#boot-meter'), fill = $('#bm-fill'), num = $('#bm-num'),
+            rate = $('#bm-rate'), stall = $('#bm-stall');
+      const show = !!(st && (st.stage==='syncing' || st.stage==='analyzing') && typeof st.messages === 'number');
+      meter.classList.toggle('on', show);
+      if (show) {
+        const now = Date.now(), msgs = st.messages;
+        seenMax.syncing = Math.max(seenMax.syncing, msgs);
+        let rateTxt = '';
+        const bp = st.build_progress || {};
+        if (st.stage === 'analyzing' && bp.phase && typeof bp.done === 'number' && bp.total) {
+          // live build heartbeat: show the REAL count, e.g. "412 / 983 threads read"
+          const ph = {extract:'threads read', merge:'merging', reconcile:'reconciling',
+                      topics:'tagging topics', digests:'writing digests', write:'writing board',
+                      fetch:'fetching', done:'done'}[bp.phase] || bp.phase;
+          num.textContent = `${bp.done.toLocaleString()} / ${bp.total.toLocaleString()} ${ph}`;
+          const pct = Math.min(100, Math.round(bp.done / bp.total * 100));
+          fill.style.width = Math.max(pct, 4) + '%';
+          // heartbeat freshness = proof of life; stale heartbeat = genuine stall
+          let hbAge = null;
+          try { hbAge = Math.round((now - new Date(bp.ts).getTime()) / 1000); } catch(e) {}
+          if (hbAge !== null && hbAge > 180) {
+            rateTxt = `no progress for ${Math.round(hbAge/60)}m — still trying`;
+            stallSince = stallSince || now;
+          } else { rateTxt = 'working…'; stallSince = 0; }
+          rate.textContent = rateTxt;
+          stall.classList.toggle('on', stallSince && (now - stallSince) > 300000);
+        } else if (st.stage === 'analyzing') {
+          // analysis has no message-count movement: show elapsed effort, never "idle"
+          const mins = Math.max(1, Math.round((now - bootT0) / 60000));
+          rateTxt = `reading… ${mins}m in`;
+          stallSince = 0;
+        } else if (prevMsgs !== null && now > prevTs) {
+          const per = (msgs - prevMsgs) / ((now - prevTs) / 1000);
+          if (per > 0.5) { rateTxt = `+${Math.round(per).toLocaleString()}/s · live`; stallSince = 0; }
+          else {
+            if (!stallSince) stallSince = now;
+            const idle = Math.round((now - stallSince) / 1000);
+            rateTxt = idle > 2 ? `idle ${idle}s` : 'settling…';
+          }
+        }
+        prevMsgs = msgs; prevTs = now;
+        const hbRendered = !!(st.stage === 'analyzing' && bp.phase && typeof bp.done === 'number' && bp.total);
+        if (!hbRendered) {
+        // bar: fraction of the max seen so far (sync has no known total);
+        // pulses toward full as new highs land
+        const pct = seenMax.syncing ? Math.min(100, Math.round(msgs / seenMax.syncing * 100)) : 0;
+        fill.style.width = (st.stage==='analyzing' ? 100 : Math.max(pct, 4)) + '%';
+        num.textContent = st.stage==='analyzing'
+          ? `${msgs.toLocaleString()} msgs · reading threads…`
+          : `${msgs.toLocaleString()} messages synced`;
+        rate.textContent = rateTxt;
+        stall.classList.toggle('on', stallSince && (now - stallSince) > 45000);
+        }
+      }
+    } catch(e) {}
     $('#boot-hint').innerHTML =
       (!st || st.stage==='awaiting_bridge') ? 'Starting services — hang tight.' :
       st.stage==='awaiting_key' ? 'AI analysis needs a Gemini key. Paste it below — it is tested live before anything continues.' :
@@ -1336,17 +1565,38 @@ async function bootSequence() {
       (st.detail||'');
     document.getElementById('boot-key').style.display =
       (st && st.stage==='awaiting_key') ? 'block' : 'none';
-    const qrEl = $('#boot-qr');
+    const qrEl = $('#boot-qr'), qrAge = $('#qr-age');
     if (st && st.stage==='awaiting_qr') {
       try {
         const q = await fetch('/api/qr').then(r=>r.json());
-        if (q && q.qr) { qrEl.textContent = q.qr; qrEl.classList.add('on'); }
-        else qrEl.classList.remove('on');
-      } catch(e) { qrEl.classList.remove('on'); }
-    } else qrEl.classList.remove('on');
+        if (q && q.qr) {
+          // visible refresh: flash on rotation so a new code never
+          // silently replaces the old one; stale codes never sit dead.
+          if (lastQrCode !== null && lastQrCode !== q.qr && !REDUCED) {
+            qrEl.style.transition = 'opacity .25s ease';
+            qrEl.style.opacity = 0;
+            setTimeout(() => { qrEl.style.opacity = 1; }, 260);
+          }
+          lastQrCode = q.qr;
+          qrEl.textContent = q.qr; qrEl.classList.add('on');
+          if (typeof q.age_s === 'number' && !q.stale) {
+            qrAge.textContent = `code fresh · ${q.age_s}s old (refreshes every 20s)`;
+            qrAge.classList.remove('stale'); qrAge.classList.add('on');
+          } else if (q.stale) {
+            qrAge.textContent = 'code expired — fetching a new one…';
+            qrAge.classList.add('stale'); qrAge.classList.add('on');
+          } else { qrAge.classList.remove('on'); }
+        } else {
+          qrEl.classList.remove('on');
+          qrAge.textContent = 'waiting for the first code…';
+          qrAge.classList.remove('stale'); qrAge.classList.add('on');
+        }
+      } catch(e) { qrEl.classList.remove('on'); qrAge.classList.remove('on'); }
+    } else { qrEl.classList.remove('on'); qrAge.classList.remove('on'); }
     if (st && !st.gemini && (st.stage==='analyzing'||st.stage==='ready'))
       $('#boot-hint').innerHTML += '<br>Tip: set GEMINI_API_KEY for full AI analysis (works without it, heuristically).';
-    await new Promise(r=>setTimeout(r, 3000));
+    // tight poll while waiting on the scan so scan-to-syncing stays fast
+    await new Promise(r=>setTimeout(r, (st && st.stage === 'awaiting_qr') ? 2000 : 3000));
   }
 }
 
@@ -1354,25 +1604,174 @@ async function loadData() {
   try {
     const r = await fetch('frontend_data.json');
     const d = await r.json();
-    TASKS = d.tasks; BULLETINS = d.bulletins||[]; DAYS = d.days||[]; WEEK = d.week||null;
-    MAP = d.map||[]; WALL = d.health_wall||null;
-    $('#footer-info').textContent = `${d.total_groups} groups · ${d.total_messages} messages · ${d.total_tasks} threads`;
-    const now = new Date();
-    $('#header-date').textContent = now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-    $('#brief-date').textContent = now.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
-    $('#brief-headline').textContent = `${dayHello(now)}. Here\u2019s your momentum.`;
-    $('#skeleton').classList.add('hidden');
-    initUI();
+    applyData(d);
   } catch(e) {
     $('#skeleton').innerHTML = `<div class="card p-10 text-center text-sm" style="color:var(--text-3)">
-      Could not load frontend_data.json.<br>Serve this folder with:<br>
-      <span class="mono text-xs">&gt; cd momentum_update && python3 -m http.server 8081</span></div>`;
+      Could not load frontend_data.json yet — analysis is still running.<br>
+      <span class="mono text-xs">Watch progress: tail -f local-store/rebuild.log</span></div>`;
   }
+}
+
+/* Progressive board: render partial snapshots immediately, keep refining live.
+   The boot overlay is dismissed; a "still reading" pill shows live counts;
+   when exported_at advances, the board refreshes itself in place. */
+let LIVE_MODE = false, LIVE_EXPORTED = null, LIVE_TIMER = null, LIVE_READY_TIMER = null;
+function applyData(d) {
+  TASKS = d.tasks; BULLETINS = d.bulletins||[]; DAYS = d.days||[]; WEEK = d.week||null;
+  MAP = d.map||[]; WALL = d.health_wall||null;
+  window.MOMENTUM_PARTIAL = !!d.partial;
+  const part = d.partial ? ` · live (${(d.progress||{}).done||'?'}/${(d.progress||{}).total||'?'} threads)` : '';
+  $('#footer-info').textContent = `${d.total_groups} groups · ${d.total_messages} messages · ${d.total_tasks} threads${part}`;
+  const now = new Date();
+  $('#header-date').textContent = now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  $('#brief-date').textContent = now.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  $('#brief-headline').textContent = `${dayHello(now)}. Here\u2019s your momentum.`;
+  $('#skeleton').classList.add('hidden');
+  initUI();
+  // partial portal: cached threads are readable; unready sections keep
+  // shimmering in place until the next export fills them (zero jump —
+  // skeletons reuse section geometry).
+  if (d.partial) renderPartialSkeletons(d);
+}
+/* Honest mm:ss / ~Ns formatter: null/unknown stays "working…", never 0
+   unless done — the pill countdown never hits zero early. */
+function fmtEta(etaS) {
+  if (typeof etaS !== 'number' || isNaN(etaS)) return 'working…';
+  const s = Math.max(1, Math.ceil(etaS));
+  if (s < 90) return `~${s}s left`;
+  return `~${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')} left`;
+}
+function renderPartialSkeletons(d) {
+  if (!(d.bulletins || []).length) {
+    const el = $('#home-recap');
+    if (el) el.innerHTML = `<div class="sk" style="height:13px;width:46%"></div>
+      <div class="sk" style="height:11px;width:88%;margin-top:8px"></div>
+      <div class="sk" style="height:11px;width:71%;margin-top:7px"></div>
+      <div class="text-[11px] mt-2" style="color:var(--text-3)">Reading the last 24h — threads above are ready.</div>`;
+  }
+  if (!d.health_wall) {
+    const el = $('#health-wall');
+    if (el) el.innerHTML = '<div class="sk" style="height:64px;border-radius:8px"></div>';
+    const sc = $('#unblock-score');
+    if (sc) sc.textContent = '…';
+  }
+}
+function enterLiveMode(firstData, st) {
+  $('#boot').classList.add('done');
+  LIVE_MODE = true;
+  applyData(firstData);
+  LIVE_EXPORTED = firstData.exported_at || null;
+  renderLivePill(firstData, st);
+  // poll for refinements: partial -> fuller -> final. Refresh on new export.
+  if (LIVE_TIMER) clearInterval(LIVE_TIMER);
+  LIVE_TIMER = setInterval(async () => {
+    try {
+      if (document.hidden) return; // background tab: stay quiet, catch up when visible
+      const d = await fetch('frontend_data.json').then(r=>r.ok?r.json():null).catch(()=>null);
+      if (!d || !d.tasks) return;
+      if (d.exported_at && d.exported_at !== LIVE_EXPORTED) {
+        const overlayOpen = ($('#detailPanel') && $('#detailPanel').classList.contains('open')) ||
+                            ($('#panelOverlay') && $('#panelOverlay').classList.contains('open'));
+        if (overlayOpen) { renderLivePill(d, null); return; } // deferred: re-rendering now would clobber the open thread; the tick after close picks it up
+        LIVE_EXPORTED = d.exported_at;
+        const keepView = (typeof activeView !== 'undefined') ? activeView : 'home';
+        const keepScroll = window.scrollY;
+        applyData(d);
+        if (!d.partial) { clearInterval(LIVE_TIMER); LIVE_TIMER = null; }
+        try { switchView(keepView); } catch(e) {}
+        window.scrollTo(0, keepScroll);
+      }
+      renderLivePill(d, null);
+    } catch(e) {}
+  }, 120000);
+  // ready-watch: cheap 5s poll that retires the pill the moment analysis
+  // finishes. Never re-renders the board itself beyond the single final
+  // apply (deferred while a thread is open), so the 2-minute calm holds.
+  if (LIVE_READY_TIMER) clearInterval(LIVE_READY_TIMER);
+  LIVE_READY_TIMER = setInterval(async () => {
+    try {
+      const s = await fetch('/api/status').then(r=>r.ok?r.json():null).catch(()=>null);
+      if (!s || s.stage !== 'ready') return;
+      const d = await fetch('frontend_data.json').then(r=>r.ok?r.json():null).catch(()=>null);
+      if (!d || !d.tasks || d.partial) return;
+      const overlayOpen = ($('#detailPanel') && $('#detailPanel').classList.contains('open')) ||
+                          ($('#panelOverlay') && $('#panelOverlay').classList.contains('open'));
+      if (overlayOpen) { renderLivePill(d, s); return; }
+      LIVE_EXPORTED = d.exported_at;
+      applyData(d);
+      renderLivePill(d, s);
+      clearInterval(LIVE_READY_TIMER); LIVE_READY_TIMER = null;
+      if (LIVE_TIMER) { clearInterval(LIVE_TIMER); LIVE_TIMER = null; }
+    } catch(e) {}
+  }, 5000);
+}
+/* 1s ticker: counts the pill ETA down visibly between status polls.
+   Re-anchored on every poll; never hits 0 early (floors at finishing…). */
+let LIVE_TICK = null, LIVE_ETA_ANCHOR = null;
+function tickLiveEta() {
+  if (!LIVE_ETA_ANCHOR) return;
+  const el = $('#live-eta');
+  if (!el) return;
+  const left = Math.max(0, LIVE_ETA_ANCHOR.at + LIVE_ETA_ANCHOR.left - Date.now());
+  el.textContent = left <= 1500 ? 'finishing…' : fmtEta(left / 1000);
+}
+function armLiveTick() {
+  if (LIVE_TICK) return;
+  LIVE_TICK = setInterval(tickLiveEta, 1000);
+}
+function stopLiveTick() {
+  if (LIVE_TICK) { clearInterval(LIVE_TICK); LIVE_TICK = null; }
+  LIVE_ETA_ANCHOR = null;
+}
+function renderLiveDone() {
+  const pill = $('#live-pill');
+  if (!pill || pill.dataset.done) return;
+  pill.dataset.done = '1';
+  LIVE_ETA_ANCHOR = null;
+  pill.innerHTML = `<span style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:#10b981"></span><span>Sync complete — board is whole.</span></span>`;
+  setTimeout(() => { const p = $('#live-pill'); if (p) p.remove(); stopLiveTick(); }, 2500);
+}
+function renderLivePill(d, st) {
+  let pill = $('#live-pill');
+  // zero reached exactly at ready: done state first, removal 2.5s later.
+  if (!d.partial && !(st && st.stage !== 'ready')) {
+    if (pill) renderLiveDone();
+    return;
+  }
+  if (!document.getElementById('livepill-css')) {
+    const css = document.createElement('style');
+    css.id = 'livepill-css';
+    css.textContent = '#live-pill .sync-bar{display:block;height:3px;border-radius:99px;background:color-mix(in srgb,var(--text-1) 12%,transparent);margin-top:8px;overflow:hidden}#live-pill .sync-bar>span{display:block;height:100%;border-radius:99px;background:hsl(var(--hue-1) 75% 55%)}@media (prefers-reduced-motion: reduce){#live-pill .boot-dot{animation:none}}';
+    document.head.appendChild(css);
+  }
+  if (!pill) {
+    pill = document.createElement('div');
+    pill.id = 'live-pill';
+    pill.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:60;min-width:230px;max-width:300px;padding:10px 14px 12px;border-radius:14px;font-size:12.5px;font-weight:600;color:var(--text-1);background:var(--bg-elev);border:1px solid var(--border);box-shadow:var(--card-shadow);cursor:pointer';
+    pill.title = 'Analysis running in background — click to follow progress';
+    pill.onclick = () => { try { switchView('command'); } catch(e) {} window.scrollTo(0,0); };
+    document.body.appendChild(pill);
+  }
+  const p = d.progress || {}, bp = (st && st.build_progress) || {};
+  const done = p.done ?? bp.done ?? '?', total = p.total ?? bp.total ?? '?';
+  const pct = (typeof done === 'number' && total) ? Math.min(100, Math.round(done/total*100)) : null;
+  const bar = pct !== null ? `<span class="sync-bar"><span style="width:${pct}%"></span></span>` : '';
+  // honest ETA from /api/status (server rate × known total); unknown stays
+  // "working…", never a faked zero. Re-anchors the 1s ticker each poll.
+  const eta = (st && typeof st.sync_eta_s === 'number') ? st.sync_eta_s : null;
+  if (eta !== null && pill.dataset.done !== '1') {
+    LIVE_ETA_ANCHOR = { at: Date.now(), left: Math.max(0, eta * 1000) };
+    armLiveTick();
+  } else if (eta === null) {
+    LIVE_ETA_ANCHOR = null;
+  }
+  pill.innerHTML = `<span style="display:flex;align-items:center;gap:8px"><span class="boot-dot" style="width:8px;height:8px;border-radius:50%;background:hsl(var(--hue-1) 75% 55%);animation:ping 1.6s var(--ease-out) infinite"></span><span>Reading threads · ${done}/${total}${pct!==null?` · ${pct}%`:''}</span></span>${bar}<span style="display:block;font-weight:500;font-size:11px;color:var(--text-3);margin-top:6px">working in the background · board refreshes every 2 min · <span id="live-eta" class="mono">${fmtEta(eta)}</span></span>`;
 }
 
 function liveTasks() {
   return TASKS.filter(t => {
     if (ARCHIVED[t.id]) return false;
+    if (SIG_ONLY && !(t.needs_my_action || t.waiting_on || (t.nudges || 0) > 0 || t.kind === 'ask')) return false;
     if (activeTheme!=='all' && t.theme!==activeTheme) return false;
     if (activeSub && (t.sub_theme||'general')!==activeSub) return false;
     if (activeStatus==='mine') { if (!t.needs_my_action || effStatus(t)==='completed') return false; }
@@ -1402,7 +1801,9 @@ function initUI() {
   renderAttention();
   renderTasks();
   renderHome();
-  switchView('home');
+  // Live refinements re-run initUI on every new export: only default to
+  // Home on first paint, never yank the user out of their current view.
+  if (!initUI._booted) { switchView('home'); initUI._booted = true; }
   renderToolbar();
   positionGroupSeg();
   updateArchBadge();
@@ -1737,6 +2138,108 @@ function legendDim(k){
   $$('#atlas-map .tm-tile').forEach(t=>{
     t.style.opacity = (k<0 || +t.dataset.lvl===k) ? '1' : '.25';
   });
+}
+
+/* ---------------- atlas tabs: Map | Nudges (assistant surface) ----------------
+   Approved via showcase atlas-nudges-tab.html (OLD vs NEW). Nudges pane renders
+   the same /api/nudges data as #view-nudges (live fetch, clientSideNudges()
+   fallback, override filtering), grouped Tonight/Tomorrow/Watching via
+   nudgeCluster(), actions wired to nudgeGo/nudgeSend/nudgeDismiss so J/K/A/S
+   selection stays shared. No new endpoint, no high-bar change. */
+let ATLAS_TAB='map';
+const ATLAS_FOOT_MAP='biggest tile = most going on &middot; redder = needs you sooner &middot; click a tile to open its threads';
+const ATLAS_FOOT_NUDGES='high bar — direct asks only &middot; one tap to send, snooze, or close &middot; full feed in the Nudges view';
+function setAtlasTab(tab){
+  ATLAS_TAB=tab;
+  $$('#atlasSeg .seg-tab').forEach(el=>el.classList.toggle('active',el.dataset.at===tab));
+  positionAtlasSeg();
+  const map=tab==='map';
+  $('#atlas-map').classList.toggle('hidden',!map);
+  $('#atlas-nudges').classList.toggle('hidden',map);
+  $('#atlas-legend').style.display=map?'':'none';
+  $('#atlas-foot').innerHTML=map?ATLAS_FOOT_MAP:ATLAS_FOOT_NUDGES;
+  if(map){ requestAnimationFrame(()=>drawAtlas()); }
+  else { renderAtlasNudges(); }
+}
+function positionAtlasSeg(){
+  const seg=$('#atlasSeg'), ind=$('#atlasSegInd'), a=seg&&seg.querySelector('.seg-tab.active');
+  if(!seg||!ind||!a) return;
+  ind.style.width=a.offsetWidth+'px'; ind.style.transform=`translateX(${a.offsetLeft-3.5}px)`;
+}
+function refreshAtlasNudgeBadge(){
+  /* synchronous count from the same client-side pipeline renderNudges falls
+     back to — no extra request; exact live count lands when the tab opens. */
+  try{
+    const n=(typeof clientSideNudges==='function'?clientSideNudges():[])
+      .filter(x=>!localNudgeHidden(x)).length;
+    const b=$('#atlas-nudge-count');
+    if(b) b.textContent=n?` · ${n}`:'';
+  }catch(e){}
+}
+function atlasNudgeRow(n,gi){
+  const meta=(typeof NUDGE_REASON_META!=='undefined'&&NUDGE_REASON_META[n.reason])||{color:'var(--text-4)',label:n.reason};
+  const t=(typeof TASKS!=='undefined'?TASKS.find(x=>x.id===n.task_id):null);
+  const title=t?t.title:(n.task_title||n.group||'Thread');
+  return `<div class="rise" style="position:relative;border:1px solid var(--border);border-radius:12px;background:var(--bg-sunken);padding:9px 12px 10px 15px;overflow:hidden;cursor:pointer;animation-delay:${gi*40}ms" onclick="nudgeGo(${gi},event)">
+    <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:${meta.color}"></div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="chip" style="color:${meta.color};border-color:color-mix(in srgb,${meta.color} 40%,transparent);background:color-mix(in srgb,${meta.color} 10%,transparent)">${esc(meta.label)}</span>
+      <span class="text-[12px] font-semibold truncate" style="color:var(--text-1);max-width:46%">${esc(title)}</span>
+      <span class="text-[10.5px] ml-auto mono" style="color:var(--text-4)">${esc(n.group||(t&&t.group)||'')}</span>
+    </div>
+    <div class="text-[12px] mt-1" style="color:var(--text-2)">${esc(n.why_now)}</div>
+    <div class="text-[11.5px]" style="color:var(--text-3)">Suggested move: ${esc(n.suggested_move)}</div>
+    <div class="flex items-center gap-1.5 mt-2 flex-wrap">
+      <button class="pill-mini" style="--pc:${meta.color}" onclick="nudgeSend('${n.id}',false,event)">Send nudge ✓</button>
+      <button class="pill-mini" style="--pc:#a8a29e" onclick="event.stopPropagation();openDetail('${esc(n.task_id)}')">Open thread →</button>
+      <button class="pill-mini" style="--pc:#a8a29e" onclick="nudgeDismiss('${n.id}','${esc(n.task_id)}','snooze',event)">Snooze 3d</button>
+    </div></div>`;
+}
+async function renderAtlasNudges(useCache){
+  const box=$('#atlas-nudges'); if(!box) return;
+  try{ if(typeof addStyleOnce==='function') addStyleOnce(); }catch(e){}
+  if(!useCache || !NUDGES.length){
+    box.innerHTML=`<div class="text-[12px] py-4 text-center" style="color:var(--text-3)"><span class="spinner"></span> Scanning the last 5 minutes…</div>`;
+    let live=null;
+    try{
+      const r=await fetch('/api/nudges?window=5');
+      const d=await r.json();
+      if(r.ok&&Array.isArray(d.nudges)) live=d.nudges;
+    }catch(e){ live=null; }
+    NUDGES=(live||clientSideNudges()).filter(n=>!localNudgeHidden(n)).slice(0,7);
+    NUDGES_SEL=0;
+    refreshAtlasNudgeBadge();
+  }
+  if(!NUDGES.length){
+    box.innerHTML=`<div class="text-center py-6">
+      <div class="display text-[15px] font-semibold" style="color:var(--text-1)">All caught up — nothing I would bug anyone about</div>
+      <div class="text-[11.5px] mt-1" style="color:var(--text-3)">High bar held — no direct asks, no fresh waiting-on activity.</div>
+      <div class="flex items-center justify-center gap-2 mt-3 flex-wrap">
+        <button class="pill-mini" style="--pc:hsl(var(--hue-1) 75% 55%)" onclick="renderAtlasNudges()">Rescan now</button>
+        <button class="pill-mini" style="--pc:#a8a29e" onclick="switchView('nudges')">Open Nudges view →</button>
+      </div></div>`;
+    return;
+  }
+  const title=NUDGES.length===1?'1 thing I would send tonight':`${NUDGES.length} things I would send tonight`;
+  const order=['Tonight','Tomorrow','Watching'];
+  const subs={Tonight:'before the day closes',Tomorrow:'lined up, not urgent',Watching:'quiet unless they move'};
+  const byC={Tonight:[],Tomorrow:[],Watching:[]};
+  NUDGES.forEach(n=>{
+    const t=(typeof TASKS!=='undefined'?TASKS.find(x=>x.id===n.task_id):null);
+    (byC[nudgeCluster(t)]||byC.Watching).push(n);
+  });
+  let html=`<div style="font-size:14px;font-weight:650;letter-spacing:-.01em;margin-top:6px;" class="display">${esc(title)}</div>
+    <div class="text-[11.5px]" style="color:var(--text-3)">Scanned the last 5 minutes · high bar — direct asks only.</div>`;
+  order.forEach(c=>{
+    const list=byC[c]; if(!list.length) return;
+    html+=`<div style="display:flex;align-items:baseline;gap:10px;margin:12px 0 8px;padding:0 2px;">
+      <span style="font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--text-2)">${c}</span>
+      <span class="serif-accent" style="font-size:13px;color:var(--text-3)">${subs[c]}</span>
+      <span class="mono" style="margin-left:auto;font-size:10px;color:var(--text-4)">${list.length}</span></div>
+      <div class="flex flex-col gap-2">`+list.map(n=>atlasNudgeRow(n,NUDGES.indexOf(n))).join('')+`</div>`;
+  });
+  html+=`<div class="text-center mt-2"><button class="pill-mini" style="--pc:#a8a29e" onclick="switchView('nudges')">Open full Nudges view →</button></div>`;
+  box.innerHTML=html;
 }
 
 /* Each territory shows only its TOP_N sub-themes as tiles. The long tail is
@@ -2147,6 +2650,9 @@ function renderToolbar() {
       ${labels[listSort]||'Smart'}
       <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="opacity:.55"><path d="M6 9l6 6 6-6"/></svg>
     </button>
+    <button class="sort-btn" id="sigBtn" onclick="toggleSignalOnly()" aria-pressed="${SIG_ONLY}" title="Show only threads that need you, wait on others, asked something, or nudged you">
+      Signal ${SIG_ONLY?'on':'off'}
+    </button>
     ${sortMenuOpen?`<div class="sort-menu" id="sortMenu">
       ${Object.entries(labels).map(([k,l])=>`
         <div class="sort-opt ${listSort===k?'sel':''}" onclick="setListSort('${k}')">
@@ -2158,6 +2664,7 @@ function renderToolbar() {
 
 function toggleSortMenu(ev){ ev.stopPropagation(); sortMenuOpen=!sortMenuOpen; renderToolbar(); }
 function setListSort(k){ listSort=k; sortMenuOpen=false; renderToolbar(); renderTasks(); }
+function toggleSignalOnly(){ SIG_ONLY=!SIG_ONLY; try{ localStorage.setItem('momentum_sigonly', SIG_ONLY?'1':'0'); }catch(e){} renderToolbar(); renderTasks(); }
 document.addEventListener('click',e=>{ if(sortMenuOpen && !e.target.closest('#sortWrap')){ sortMenuOpen=false; renderToolbar(); } });
 
 function setListGroup(g){
@@ -2812,6 +3319,7 @@ function appendSentBubble(text){
 
 function refreshAll(rerenderBoard=true) {
   renderSideThemes(); renderHero(); renderAtlas(); renderWall(); renderAttention(); renderTasks(); renderHome();
+  refreshAtlasNudgeBadge(); requestAnimationFrame(()=>positionAtlasSeg());
   if (activeView==='pulse') renderPulse();
   if (rerenderBoard && activeView==='board') renderBoard();
 }
@@ -2838,24 +3346,205 @@ const VIEW_TITLES={
   home:['Home','Your day at a glance — start here.'],
   command:['Command Center','Everything moving across your groups — nothing missed.'],
   pulse:['Pulse','What happened recently — 3-hour windows, daily and weekly digests.'],
-  board:['Board','Drag threads between columns to keep statuses honest.']
+  board:['Board','Drag threads between columns to keep statuses honest.'],
+  nudges:['Nudges','Only what I would actually send tonight — high bar, nothing noisy.']
 };
 
 function switchView(view){
+  if (view==='nudges'||view==='board') view='command'; // paused views bounce home to Command Center
   activeView=view;
   $$('.view-block').forEach(el=>{el.classList.add('hidden');el.classList.remove('entering');});
   const el=$(`#view-${view}`);
+  if(!el) return;
   el.classList.remove('hidden'); void el.offsetWidth; el.classList.add('entering');
   $$('.side-nav-item[data-view]').forEach(n=>n.classList.toggle('active',n.dataset.view===view));
   $$('.tabbar .tab-item').forEach(n=>n.classList.toggle('active',n.dataset.view===view));
-  const [t,s]=VIEW_TITLES[view];
+  const [t,s]=VIEW_TITLES[view]||VIEW_TITLES.command;
   $('#view-title').textContent=t; $('#view-sub').textContent=s;
   closeDrawer();
   window.scrollTo({top:0,behavior:'smooth'});
   if(view==='home') renderHome();
   if(view==='pulse') renderPulse();
   if(view==='board') renderBoard();
-  if(view==='command'&&MAP.length) requestAnimationFrame(drawAtlas);
+  if(view==='nudges') renderNudges();
+  if(view==='command'&&MAP.length){ requestAnimationFrame(()=>{ if(ATLAS_TAB==='map') drawAtlas(); positionAtlasSeg(); }); refreshAtlasNudgeBadge(); }
+}
+
+/* ---------------- nudges (assistant feed) ---------------- */
+let NUDGES=[], NUDGES_SEL=0;
+const NUDGE_REASON_META={
+  direct_address:{color:'#ef4444',label:'Asked you'},
+  waiting_on:{color:'#8b5cf6',label:'Waiting on them'},
+  needs_you:{color:'#f59e0b',label:'Needs you'}
+};
+function nudgeCluster(t){
+  const ts=parseTime(t&&t.last_ts);
+  if(!ts) return 'Watching';
+  const dd=(Date.now()-ts.getTime())/86400000;
+  if(dd<1) return 'Tonight';
+  if(dd<2) return 'Tomorrow';
+  return 'Watching';
+}
+function clientSideNudges(){
+  /* v1 fallback: high-bar client filter when /api/nudges is unreachable. */
+  const owner=(window.MOMENTUM_OWNER||'').trim();
+  const cutoff=Date.now()-5*60000;
+  const out=[];
+  const qRe=/(can|could|would|will|please|share|send|confirm|update|approve|review|check|decide|need|needs|chase|ping|remind|asap|let me know|follow up|\?)/i;
+  const seen=new Set();
+  const push=(reason,task,why,move)=>{
+    if(out.length>=7||seen.has(task.id)) return;
+    seen.add(task.id);
+    const nid=`n-${reason}-${task.id}`;
+    out.push({id:nid,task_id:task.id,group:task.group||'',reason,why_now:why,
+      suggested_move:move,task_title:task.title,
+      quick_actions:[{id:nid+':send_nudge',label:'Send nudge ✓',kind:'send_nudge'},
+        {id:nid+':soften',label:'Soften',kind:'soften'},
+        {id:nid+':open_thread',label:'Open thread →',kind:'open_thread'},
+        {id:nid+':mark_closed',label:'Mark closed',kind:'mark_closed'},
+        {id:nid+':snooze',label:'Snooze 3d',kind:'snooze'}]});
+  };
+  TASKS.filter(t=>!ARCHIVED[t.id]).forEach(t=>{
+    const msgs=(t.messages||[]).slice().sort((a,b)=>String(a.time||'').localeCompare(String(b.time||'')));
+    const fresh=msgs.filter(m=>{const ts=parseTime(m.time);return ts&&ts.getTime()>=cutoff;});
+    if(!fresh.length) return;
+    const ownerRe=/\b(you)\b/i;
+    const ownerPat=owner?new RegExp('\\b'+owner.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','i'):null;
+    const lastAddr=[...fresh].reverse().find(m=>{
+      const body=String(m.body||''); if(body.split(/\s+/).length<3) return false;
+      if(/^fyi/i.test(body.trim())) return false;
+      const who=String(m.sender||'');
+      if(owner&&who.toLowerCase().includes(owner.toLowerCase())) return false;
+      return (ownerPat&&ownerPat.test(body)&&qRe.test(body))||(ownerRe.test(body)&&body.includes('?'));
+    });
+    if(lastAddr){
+      const after=fresh.some(m=>String(m.time||'')>String(lastAddr.time||'')&&owner&&String(m.sender||'').toLowerCase().includes(owner.toLowerCase()));
+      if(!after) push('direct_address',t,`${lastAddr.sender||'Someone'} asked you in ${t.group||'a group'} — no reply from you yet`,'Send a short reply, or fire the nudge draft below.');
+    }
+    if(t.waiting_on&&(t.nudges||0)>=1){
+      const ts=parseTime(t.last_ts);
+      if(ts&&ts.getTime()>=cutoff) push('waiting_on',t,`Waiting on ${t.waiting_on}; fresh activity in ${t.group||'the thread'}` ,`Chase ${t.waiting_on} with a short nudge.`);
+    }
+    if(t.needs_my_action&&fresh.some(m=>String(m.body||'').includes('?'))) push('needs_you',t,`Fresh question in ${t.group||'the thread'} on something you own`,'Answer it, or send a holding reply until you can.');
+  });
+  const rank={direct_address:0,waiting_on:1,needs_you:2};
+  return out.sort((a,b)=>rank[a.reason]-rank[b.reason]).slice(0,7);
+}
+function localNudgeHidden(n){
+  try{
+    const key='momentum_nudge_overrides_v1';
+    const d=JSON.parse(store.get(key,'{}')||'{}');
+    for(const k of [n.id,n.task_id]){
+      const e=d[k]; if(!e) continue;
+      if(e.status==='closed') return true;
+      if(e.status==='snoozed'&&Date.now()-(e.ts||0)<72*3600*1000) return true;
+    }
+  }catch(e){}
+  return false;
+}
+function saveLocalNudge(key,status){
+  try{
+    const k='momentum_nudge_overrides_v1';
+    const d=JSON.parse(store.get(k,'{}')||'{}');
+    d[key]={status,ts:Date.now()};
+    store.set(k,JSON.stringify(d));
+  }catch(e){}
+}
+async function renderNudges(){
+  const box=$('#view-nudges'); if(!box) return;
+  box.innerHTML=`<div class="p-12 text-center text-sm" style="color:var(--text-3)"><span class="spinner"></span> Scanning the last 5 minutes…</div>`;
+  let live=null;
+  try{
+    const r=await fetch('/api/nudges?window=5');
+    const d=await r.json();
+    if(r.ok&&Array.isArray(d.nudges)) live=d.nudges;
+  }catch(e){ live=null; }
+  NUDGES=(live||clientSideNudges()).filter(n=>!localNudgeHidden(n)).slice(0,7);
+  NUDGES_SEL=0;
+  if(!NUDGES.length){
+    box.innerHTML=`<div class="text-center py-16 rise">
+      <div class="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-4" style="background:var(--bg-sunken);border:1px solid var(--border)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text-4)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+      </div>
+      <div class="display text-[17px] font-semibold" style="color:var(--text-1)">All caught up — nothing I would bug anyone about</div>
+      <div class="text-[12px] mt-1.5" style="color:var(--text-3)">High bar: only direct asks to you in the last 5 minutes, or threads you are chasing with fresh movement.</div>
+      <button class="pill-mini mt-4" style="--pc:hsl(var(--hue-1) 75% 55%)" onclick="renderNudges()">Rescan now</button></div>`;
+    try{ refreshAtlasNudgeBadge(); if(ATLAS_TAB==='nudges') renderAtlasNudges(true); }catch(e){}
+    return;
+  }
+  const title=NUDGES.length===1?'1 thing I would send tonight':`${NUDGES.length} things I would send tonight`;
+  const order=['Tonight','Tomorrow','Watching'];
+  const byC={Tonight:[],Tomorrow:[],Watching:[]};
+  NUDGES.forEach(n=>{
+    const t=TASKS.find(x=>x.id===n.task_id);
+    (byC[nudgeCluster(t)]||byC.Watching).push({n,t});
+  });
+  let html=`<div class="rise mb-4"><div class="display text-[19px] font-semibold" style="color:var(--text-1)">${esc(title)}</div>
+    <div class="text-[12px] mt-1" style="color:var(--text-3)">Scanned the last 5 minutes · high bar — direct asks only. One tap to send, snooze, or close.</div></div>`;
+  order.forEach(c=>{
+    const list=byC[c]; if(!list.length) return;
+    html+=`<div class="list-head rise">${esc(c)}<span class="g-count">${list.length}</span></div>`;
+    list.forEach(({n,t},i)=>{
+      const meta=NUDGE_REASON_META[n.reason]||{color:'var(--text-4)',label:n.reason};
+      const th=t?themeOf(t):{color:meta.color,label:n.group||''};
+      const who=n.reason==='direct_address'?'asked you':(t&&t.waiting_on?`waiting on ${t.waiting_on}`:(t&&t.owner?`→ ${t.owner}`:''));
+      const gi=NUDGES.indexOf(n);
+      html+=`<div class="attn-card rise nudge-card ${gi===NUDGES_SEL?'sel':''}" data-ni="${gi}" style="--ac:${meta.color};animation-delay:${i*40}ms" onclick="nudgeGo(${gi},event)">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="chip" style="color:${meta.color};border-color:color-mix(in srgb,${meta.color} 40%,transparent);background:color-mix(in srgb,${meta.color} 10%,transparent)">${esc(meta.label)}</span>
+          ${who?`<span class="text-[11px] font-medium" style="color:${meta.color}">${esc(who)}</span>`:''}
+          <span class="text-[11px] truncate" style="color:var(--text-3)"><span class="t-dot" style="background:${th.color}"></span>${esc(t?t.title:(n.task_title||n.group||'Thread'))}</span>
+          <span class="text-[10.5px] ml-auto mono" style="color:var(--text-4)">${esc(n.group||(t&&t.group)||'')}</span>
+        </div>
+        <div class="text-[12.5px] mt-1.5" style="color:var(--text-2)">${esc(n.why_now)}</div>
+        <div class="text-[11.5px] mt-0.5" style="color:var(--text-3)">Suggested move: ${esc(n.suggested_move)}</div>
+        <div class="flex items-center gap-1.5 mt-2.5 flex-wrap">
+          <button class="pill-mini nudge-primary" style="--pc:${meta.color}" onclick="nudgeSend('${n.id}',false,event)">Send nudge ✓</button>
+          <button class="pill-mini" style="--pc:#a8a29e" onclick="nudgeSend('${n.id}',true,event)">Soften</button>
+          <button class="pill-mini" style="--pc:#a8a29e" onclick="event.stopPropagation();openDetail('${esc(n.task_id)}')">Open thread →</button>
+          <button class="pill-mini" style="--pc:#a8a29e" onclick="nudgeDismiss('${n.id}','${esc(n.task_id)}','mark_closed',event)">Mark closed</button>
+          <button class="pill-mini" style="--pc:#a8a29e" onclick="nudgeDismiss('${n.id}','${esc(n.task_id)}','snooze',event)">Snooze 3d</button>
+        </div></div>`;
+    });
+  });
+  html+=`<div class="hidden sm:flex items-center gap-3 mt-4 text-[10.5px]" style="color:var(--text-4)">
+    <span class="flex items-center gap-1.5"><span class="kbd">J</span><span class="kbd">K</span> navigate</span>
+    <span class="flex items-center gap-1.5"><span class="kbd">A</span> approve-send</span>
+    <span class="flex items-center gap-1.5"><span class="kbd">S</span> snooze</span></div>`;
+  box.innerHTML=html;
+  try{ refreshAtlasNudgeBadge(); if(ATLAS_TAB==='nudges') renderAtlasNudges(true); }catch(e){}
+}
+function nudgeById(id){ return NUDGES.find(n=>n.id===id); }
+function nudgeGo(i,ev){
+  if(ev&&ev.target.closest('button')) return;
+  NUDGES_SEL=i;
+  $$('.nudge-card').forEach(c=>c.classList.toggle('sel',+c.dataset.ni===i));
+  const n=NUDGES[i]; if(n&&n.task_id) openDetail(n.task_id);
+}
+async function nudgeSend(id,soften,ev){
+  if(ev) ev.stopPropagation();
+  const n=nudgeById(id); if(!n||!n.task_id){ toast('No thread linked to this nudge'); return; }
+  const hint=soften?'soften this: friendly, low-pressure check-in':'short direct nudge asking for what is owed';
+  try{
+    const r=await postJSON('/api/replies',{task_id:n.task_id,hint,intents:['nudge']});
+    if(r.error||!r.drafts||!r.drafts.length){ toast('⚠ '+(r.error||'no draft returned')); return; }
+    const s=await postJSON('/api/send',{task_id:n.task_id,text:r.drafts[0].text,attach_context:false});
+    if(s.error){ toast('⚠ '+s.error); return; }
+    toast(s.mode==='live'?`Sent to ${s.group||'group'}`:'Nudge composed — dry-run (set MOMENTUM_LIVE=1 to deliver)');
+    renderNudges();
+  }catch(e){ toast('⚠ Send failed: '+e.message); }
+}
+async function nudgeDismiss(id,taskId,action,ev){
+  if(ev) ev.stopPropagation();
+  const n=nudgeById(id);
+  try{
+    const r=await postJSON('/api/nudges/dismiss',{nudge_id:id,task_id:taskId,action}).catch(()=>({error:'offline'}));
+    if(r.error) saveLocalNudge(taskId||id,action==='snooze'?'snoozed':'closed');
+  }catch(e){ saveLocalNudge(taskId||id,action==='snooze'?'snoozed':'closed'); }
+  NUDGES=NUDGES.filter(x=>x.id!==id);
+  if(n) toast(action==='snooze'?'Snoozed for 3 days':'Marked closed',()=>{NUDGES.unshift(n);renderNudges();});
+  else toast(action==='snooze'?'Snoozed for 3 days':'Marked closed');
+  await renderNudges();
 }
 
 function toggleTheme(){
@@ -2881,6 +3570,7 @@ function renderCmdk(qRaw){
     {type:'action',icon:'◎',label:'Go to Command Center',hint:'view',fn:()=>{closeCmdk();switchView('command');}},
     {type:'action',icon:'∿',label:'Go to Pulse',hint:'view',fn:()=>{closeCmdk();switchView('pulse');}},
     {type:'action',icon:'▤',label:'Go to Board',hint:'view',fn:()=>{closeCmdk();switchView('board');}},
+    {type:'action',icon:'✦',label:'Go to Nudges',hint:'view',fn:()=>{closeCmdk();switchView('nudges');}},
     {type:'action',icon:'◐',label:'Toggle light / dark theme',hint:'theme',fn:()=>{closeCmdk();toggleTheme();}},
     {type:'action',icon:'⧉',label:'Copy weekly digest',hint:'clipboard',fn:()=>{closeCmdk();copyWeek(new Event('click'));}},
     {type:'action',icon:'▣',label:'Open classic UI',hint:'link',fn:()=>{window.location.href='classic.html';}}
@@ -2962,6 +3652,13 @@ document.addEventListener('keydown',e=>{
   if(e.key==='1') switchView('command');
   if(e.key==='2') switchView('pulse');
   if(e.key==='3') switchView('board');
+  if(e.key==='4') switchView('nudges');
+  if(activeView==='nudges'&&NUDGES.length&&!e.metaKey&&!e.ctrlKey){
+    if(e.key==='j'||e.key==='J'){ e.preventDefault(); NUDGES_SEL=Math.min(NUDGES_SEL+1,NUDGES.length-1); $$('.nudge-card').forEach(c=>c.classList.toggle('sel',+c.dataset.ni===NUDGES_SEL)); $$('.nudge-card')[NUDGES_SEL]?.scrollIntoView({block:'nearest',behavior:'smooth'}); }
+    if(e.key==='k'||e.key==='K'){ e.preventDefault(); NUDGES_SEL=Math.max(NUDGES_SEL-1,0); $$('.nudge-card').forEach(c=>c.classList.toggle('sel',+c.dataset.ni===NUDGES_SEL)); $$('.nudge-card')[NUDGES_SEL]?.scrollIntoView({block:'nearest',behavior:'smooth'}); }
+    if(e.key==='a'||e.key==='A'){ const n=NUDGES[NUDGES_SEL]; if(n) nudgeSend(n.id,false); }
+    if(e.key==='s'||e.key==='S'){ const n=NUDGES[NUDGES_SEL]; if(n) nudgeDismiss(n.id,n.task_id,'snooze'); }
+  }
   if(activeView==='command'&&visibleIds.length&&!e.metaKey&&!e.ctrlKey){
     if(e.key==='j'||e.key==='J'){ e.preventDefault(); selIdx=Math.min(selIdx+1,visibleIds.length-1); highlightSel(); }
     if(e.key==='k'||e.key==='K'){ e.preventDefault(); selIdx=Math.max(selIdx-1,0); highlightSel(); }

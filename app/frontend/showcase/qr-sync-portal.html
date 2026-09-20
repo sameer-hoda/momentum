@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QR Sync Portal — Proposal · Momentum Showcase</title>
+<style>
+  /* Tokens copied from app/frontend/index.html :root + .light/.dark + .card + .sk */
+  :root { --font-ui:'Inter',system-ui,-apple-system,sans-serif; --font-serif:'Instrument Serif',Georgia,serif;
+    --font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --hue-1:262; --hue-2:222;
+    --ease-spring:cubic-bezier(.22,1,.36,1); --ease-out:cubic-bezier(.16,1,.3,1); }
+  .light { --bg:#f7f7f5; --bg-elev:#fff; --bg-sunken:#f0efec; --bg-inset:#e9e8e4; --border:#e7e5e0; --border-soft:#f0eeea;
+    --text-1:#1c1917; --text-2:#57534e; --text-3:#a29d97; --text-4:#d6d3cd;
+    --accent:hsl(var(--hue-1) 70% 52%); --accent-soft:hsl(var(--hue-1) 70% 52% / .09);
+    --card-shadow:0 1px 2px rgba(28,25,23,.04),0 4px 16px -4px rgba(28,25,23,.05); }
+  .dark { --bg:#09090c; --bg-elev:#121217; --bg-sunken:#0e0e13; --bg-inset:#17171d;
+    --border:#24242b; --border-soft:#1b1b21; --text-1:#f4f4f5; --text-2:#a1a1aa; --text-3:#5b5b66; --text-4:#3f3f49;
+    --accent:hsl(var(--hue-1) 85% 68%); --accent-soft:hsl(var(--hue-1) 85% 68% / .13);
+    --card-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 4px 16px -4px rgba(0,0,0,.45); }
+  * { font-family:var(--font-ui); -webkit-font-smoothing:antialiased; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text-1); margin:0; min-height:100vh; transition:background .4s; }
+  .mono { font-family:var(--font-mono); font-feature-settings:'tnum'; font-variant-numeric:tabular-nums; }
+  .card { background:var(--bg-elev); border:1px solid var(--border); border-radius:16px; box-shadow:var(--card-shadow); }
+
+  .tgl { position:fixed; top:14px; right:14px; z-index:50; display:flex; gap:6px; background:var(--bg-elev);
+    border:1px solid var(--border); border-radius:99px; padding:4px; }
+  .tgl button { border:none; background:transparent; color:var(--text-3); font-size:12px; font-weight:600;
+    padding:6px 14px; border-radius:99px; cursor:pointer; }
+  .tgl button.on { background:var(--text-1); color:var(--bg); }
+
+  .wrap { max-width:860px; margin:0 auto; padding:56px 22px 120px; }
+  h1 { font-size:28px; letter-spacing:-.03em; margin:8px 0 4px; }
+  h1 .it { font-family:var(--font-serif); font-style:italic; font-weight:400; }
+  .lede { font-size:13.5px; color:var(--text-2); max-width:64ch; line-height:1.6; margin:0 0 18px; }
+  .switcher { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 18px; }
+  .switcher button { font-size:12px; font-weight:600; padding:7px 14px; border-radius:99px; cursor:pointer;
+    border:1px solid var(--border); background:var(--bg-elev); color:var(--text-2); }
+  .switcher button.on { background:var(--text-1); border-color:var(--text-1); color:var(--bg); }
+
+  /* ---- state 1: syncing hold ---- */
+  .sync-card { max-width:480px; margin:0 auto; padding:28px 26px; text-align:center; }
+  .sync-ring { width:64px; height:64px; margin:0 auto 14px; border-radius:50%;
+    border:3px solid var(--bg-inset); border-top-color:var(--accent);
+    animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .sync-count { font-family:var(--font-mono); font-size:34px; font-weight:700; letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums; }
+  .sync-sub { font-size:12.5px; color:var(--text-2); margin-top:6px; }
+  .sync-meta { display:flex; justify-content:center; gap:16px; margin-top:14px; font-size:12px; color:var(--text-3); }
+  .sync-meta b { color:var(--text-1); font-family:var(--font-mono); font-weight:600; }
+
+  /* ---- state 2/3: portal ---- */
+  .portal-bar { display:flex; align-items:center; gap:10px; padding:10px 16px; margin-bottom:14px;
+    font-size:12.5px; color:var(--text-2); }
+  .portal-bar .dot { width:8px; height:8px; border-radius:50%; background:var(--accent); flex-shrink:0;
+    animation:pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  .portal-bar .eta { margin-left:auto; font-family:var(--font-mono); font-size:12px; color:var(--text-1);
+    font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .portal-bar.done .dot { background:#10b981; animation:none; }
+  .thread { padding:13px 16px; margin-bottom:8px; }
+  .thread h3 { margin:0 0 4px; font-size:13.5px; }
+  .thread p { margin:0; font-size:12.5px; color:var(--text-2); line-height:1.5; }
+  .thread .meta { margin-top:8px; font-size:10.5px; color:var(--text-3); font-family:var(--font-mono); }
+  /* skeleton: same geometry as .thread so ready swaps with zero layout jump */
+  .sk { position:relative; overflow:hidden; background:var(--bg-sunken); border-radius:10px; }
+  .sk::after { content:''; position:absolute; inset:0; transform:translateX(-100%);
+    background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--text-1) 6%,transparent),transparent);
+    animation:shimmer 1.6s infinite; }
+  @keyframes shimmer { to { transform:translateX(100%); } }
+  .sk-thread { padding:13px 16px; margin-bottom:8px; border:1px solid var(--border-soft); border-radius:13px;
+    background:var(--bg-elev); }
+
+  /* ---- state 0: QR ---- */
+  .qr-card { max-width:480px; margin:0 auto; padding:28px 26px; text-align:center; }
+  .qr-art { font-family:var(--font-mono); font-size:7px; line-height:7px; background:var(--bg-sunken);
+    border:1px solid var(--border-soft); border-radius:12px; padding:14px 8px; margin:14px auto 0;
+    max-width:280px; overflow:hidden; }
+  .qr-age { margin-top:10px; font-size:12px; color:var(--text-3); font-family:var(--font-mono); }
+  .qr-age.stale { color:#b45309; }
+  .hidden { display:none !important; }
+
+  .note { margin-top:22px; font-size:12px; color:var(--text-3); line-height:1.6; max-width:64ch; }
+  .note code { font-family:var(--font-mono); font-size:11px; background:var(--bg-sunken);
+    padding:1px 6px; border-radius:6px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration:.01ms !important; transition-duration:.01ms !important; }
+  }
+</style>
+</head>
+<body class="light">
+<div class="tgl" role="group" aria-label="Theme">
+  <button id="t-light" class="on" onclick="setTheme('light')">Light</button>
+  <button id="t-dark" onclick="setTheme('dark')">Dark</button>
+</div>
+
+<div class="wrap">
+  <h1>QR sync <span class="it">portal proposal</span></h1>
+  <p class="lede">Scan &rarr; syncing hold (~10s, countdown never skips) &rarr; portal with cached
+  threads readable plus shimmer on unready sections and a live ETA &rarr; complete board with
+  identical card geometry (zero layout jump). Stale QR codes visibly refresh, never sit dead.</p>
+
+  <div class="switcher" role="group" aria-label="States">
+    <button data-s="qr" onclick="show('qr')">0 · QR wait</button>
+    <button data-s="sync" class="on" onclick="show('sync')">1 · Syncing hold</button>
+    <button data-s="partial" onclick="show('partial')">2 · Partial portal</button>
+    <button data-s="ready" onclick="show('ready')">3 · Complete</button>
+  </div>
+
+  <!-- state 0 -->
+  <div class="card qr-card" id="s-qr" hidden>
+    <div style="font-size:15px;font-weight:650">Link WhatsApp</div>
+    <p style="font-size:12.5px;color:var(--text-2)">Scan with WhatsApp &rarr; Settings &rarr; Linked devices.</p>
+    <div class="qr-art" id="qr-art">████████░░<br>░░██████░░<br>████░░████</div>
+    <div class="qr-age" id="qr-age">code fresh · 4s old</div>
+  </div>
+
+  <!-- state 1 -->
+  <div class="card sync-card" id="s-sync">
+    <div class="sync-ring" aria-hidden="true"></div>
+    <div style="font-size:15px;font-weight:650">Syncing your chats</div>
+    <div class="sync-count" id="hold-count" aria-live="polite">10</div>
+    <div class="sync-sub">Entering your portal in <span id="hold-secs">10</span>s — getting the first threads ready.</div>
+    <div class="sync-meta"><span><b id="sync-msgs">1,240</b> messages</span><span><b id="sync-rate">+310/s</b> live</span></div>
+  </div>
+
+  <!-- state 2 -->
+  <div id="s-partial" hidden>
+    <div class="card portal-bar" aria-live="polite"><span class="dot"></span>
+      <span>Reading threads · <span class="mono" id="pp-done">312/983</span> — board fills in live</span>
+      <span class="eta" id="pp-eta">~45s left</span>
+    </div>
+    <div class="card thread"><h3>Unblock the checkout success dip</h3>
+      <p>Success rate dipped 2 points after the release — needs an owner before Friday.</p>
+      <div class="meta">WORK · 2d old · 14 messages</div></div>
+    <div class="card thread"><h3>Merchant offers follow-up</h3>
+      <p>Any update on the merchant offers? Two threads waiting on them.</p>
+      <div class="meta">GROWTH · 5h old · 6 messages</div></div>
+    <div class="sk-thread" aria-label="Loading more threads"><div class="sk" style="height:14px;width:55%"></div>
+      <div class="sk" style="height:11px;width:90%;margin-top:8px"></div>
+      <div class="sk" style="height:10px;width:35%;margin-top:8px"></div></div>
+    <div class="sk-thread" aria-label="Loading more threads"><div class="sk" style="height:14px;width:40%"></div>
+      <div class="sk" style="height:11px;width:80%;margin-top:8px"></div></div>
+  </div>
+
+  <!-- state 3 -->
+  <div id="s-ready" hidden>
+    <div class="card portal-bar done"><span class="dot"></span><span>Board complete · 983/983 threads</span>
+      <span class="eta">done</span></div>
+    <div class="card thread"><h3>Unblock the checkout success dip</h3>
+      <p>Success rate dipped 2 points after the release — needs an owner before Friday.</p>
+      <div class="meta">WORK · 2d old · 14 messages</div></div>
+    <div class="card thread"><h3>Merchant offers follow-up</h3>
+      <p>Any update on the merchant offers? Two threads waiting on them.</p>
+      <div class="meta">GROWTH · 5h old · 6 messages</div></div>
+    <div class="card thread"><h3>Q3 numbers recap</h3>
+      <p>Numbers are out — shared the deck yesterday, no open asks.</p>
+      <div class="meta">WORK · 3d old · 9 messages</div></div>
+    <div class="card thread"><h3>Invoice from Acme</h3>
+      <p>Send the invoice today — waiting on finance sign-off.</p>
+      <div class="meta">PERSONAL · 1d old · 4 messages</div></div>
+  </div>
+
+  <p class="note">Contract mirrored in <code>tests/test_qr_sync.py</code> and
+  <code>app/journey_gates.py</code> (<code>scan_hold_state</code> /
+  <code>sync_eta_estimate</code> / <code>partial_sections</code>). Timer ticks with
+  <code>font-variant-numeric:tabular-nums</code> so digits never jitter; skeleton cards reuse
+  <code>.thread</code> geometry so ready swaps cause zero layout shift. Respects
+  <code>prefers-reduced-motion</code>.</p>
+</div>
+
+<script>
+function setTheme(t){ document.body.className = t;
+  document.getElementById('t-light').classList.toggle('on', t==='light');
+  document.getElementById('t-dark').classList.toggle('on', t==='dark'); }
+try { if (matchMedia('(prefers-color-scheme: dark)').matches) setTheme('dark'); } catch(e) {}
+var holdTimer = null, qrTimer = null, etaTimer = null;
+function show(s){
+  document.querySelectorAll('.switcher button').forEach(function(b){
+    b.classList.toggle('on', b.dataset.s===s); });
+  ['qr','sync','partial','ready'].forEach(function(k){
+    document.getElementById('s-'+k).hidden = (k!==s); });
+  clearInterval(holdTimer); clearInterval(qrTimer); clearInterval(etaTimer);
+  if (s==='sync') demoHold();
+  if (s==='qr') demoQr();
+  if (s==='partial') demoEta();
+}
+function demoHold(){
+  var left = 10, msgs = 1240;
+  var c = document.getElementById('hold-count'), s = document.getElementById('hold-secs'),
+      m = document.getElementById('sync-msgs');
+  function tick(){
+    c.textContent = left; s.textContent = left;
+    m.textContent = msgs.toLocaleString();
+    if (left <= 0) { left = 10; msgs = 1240; } else { left--; msgs += 280 + Math.round(Math.random()*80); }
+  }
+  tick(); holdTimer = setInterval(tick, 1000);
+}
+function demoQr(){
+  var age = 4;
+  var el = document.getElementById('qr-age'), art = document.getElementById('qr-art');
+  function tick(){
+    age++;
+    if (age > 20) { // stale: visibly refresh, never a dead code
+      age = 0;
+      art.style.opacity = 0;
+      setTimeout(function(){
+        art.textContent = '░░████░░██\n██░░████░░\n░░██░░████';
+        art.style.opacity = 1; }, 250);
+      el.textContent = 'new code issued · just now';
+      el.classList.remove('stale');
+    } else {
+      el.textContent = (age > 14 ? 'refreshing soon · ' : 'code fresh · ') + age + 's old';
+      el.classList.toggle('stale', age > 14);
+    }
+  }
+  tick(); qrTimer = setInterval(tick, 1000);
+}
+function demoEta(){
+  var done = 312, total = 983, left = 45;
+  var d = document.getElementById('pp-done'), e = document.getElementById('pp-eta');
+  function tick(){
+    d.textContent = done + '/' + total;
+    e.textContent = left > 0 ? '~' + left + 's left' : 'finishing…';
+    if (left > 0) { left -= 3; done = Math.min(total, done + 62); }
+  }
+  tick(); etaTimer = setInterval(tick, 1000);
+}
+demoHold();
+</script>
+</body>
+</html>

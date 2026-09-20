@@ -16,11 +16,19 @@ MESSAGES_DB = os.path.join(STORE_DIR, 'messages.db')
 STATE_FILE = '/tmp/provision.json'
 STABLE_POLLS = 3
 STABLE_GAP = 15
+# Scan-detection cadence: the awaiting_qr loop must notice pairing fast
+# (scan-to-syncing under 2s), so it polls quickly and only re-announces
+# the stage text on the slow cadence below.
+AWAITING_QR_POLL_S = 2
 
 
-def save(stage, detail='', messages=0):
+def save(stage, detail='', messages=0, extra=None):
     st = {'stage': stage, 'detail': detail, 'messages': messages,
           'updated': datetime.datetime.now(datetime.timezone.utc).isoformat()}
+    if extra:
+        for k, v in extra.items():
+            if k not in st:
+                st[k] = v
     for p in (STATE_FILE, os.path.join(STORE_DIR, 'provision.json')):
         try:
             os.makedirs(os.path.dirname(p) or '.', exist_ok=True)
@@ -51,12 +59,21 @@ def msg_count():
         return 0
 
 
+def log(m):
+    print(m, flush=True)
+
+
 def _ping_key(key):
+    """Validate the env key in a FRESH interpreter (G2 gate contract).
+
+    The old in-process genai ping hit a client-reuse bug (RuntimeError)
+    and rejected valid keys, wedging fresh boots in awaiting_key.
+    The parent process never imports genai.
+    """
     try:
-        from google import genai
-        it = genai.Client(api_key=key).models.list(config={'page_size': 1})
-        next(iter(it), None)
-        return True
+        sys.path.insert(0, APP_DIR)
+        from journey_gates import validate_key_fresh
+        return bool(validate_key_fresh(key))
     except Exception as e:
         log(f'env key check failed ({type(e).__name__})')
         return False
@@ -146,17 +163,45 @@ def main():
 
     t0 = time.time()
     save('awaiting_bridge', 'starting WhatsApp bridge', 0)
-    while not bridge_up():
-        if time.time() - t0 > 300:
-            save('error', 'bridge did not come up — check deploy logs')
-            return
-        time.sleep(3)
+    # SKIP_BRIDGE_WAIT=1 for local QR-first runs: the bridge only opens its
+    # port AFTER pairing, so a TCP wait would false-timeout. Pairing itself is
+    # still verified below (message count + bridge-log hints before syncing).
+    if os.environ.get('SKIP_BRIDGE_WAIT', '0') != '1':
+        while not bridge_up():
+            if time.time() - t0 > 300:
+                save('error', 'bridge did not come up — check deploy logs')
+                return
+            time.sleep(3)
 
     # Gemini key first: analysis and drafts need it. User pastes it in the
     # UI (validated + saved to the volume); env key skips this entirely.
     # SKIP_KEY_CHECK=1 (or the UI "skip" choice) runs heuristic-only.
     skip_file = os.path.join(STORE_DIR, '.skip-key')
-    if not has_key() and os.environ.get('SKIP_KEY_CHECK', '0') != '1' \
+
+    def ui_key_confirmed():
+        """True once the user pasted a key (stored file) or chose skip."""
+        try:
+            sys.path.insert(0, APP_DIR)
+            import export_data as ed
+            if os.path.exists(ed.GEMINI_KEY_FILE):
+                return True
+        except Exception:
+            if os.path.exists(os.path.join(STORE_DIR, 'gemini.key')):
+                return True
+        return os.path.exists(skip_file)
+
+    # ASK_KEY_FIRST=1 (local runs): always stop at the key step so the user
+    # is asked for a valid, live-tested key — even when an env key exists.
+    # Env keys still power analysis; they just don't skip the human step.
+    if os.environ.get('ASK_KEY_FIRST', '0') == '1' and not ui_key_confirmed():
+        save('awaiting_key', 'paste a Gemini API key to enable AI analysis', 0)
+        while not ui_key_confirmed():
+            time.sleep(10)
+        if os.path.exists(skip_file):
+            save('awaiting_key', 'heuristic mode — continuing without AI', 0)
+        else:
+            save('awaiting_key', 'key accepted — continuing', 0)
+    elif not has_key() and os.environ.get('SKIP_KEY_CHECK', '0') != '1' \
             and not os.path.exists(skip_file):
         save('awaiting_key', 'paste a Gemini API key to enable AI analysis', 0)
         while not has_key() and not os.path.exists(skip_file):
@@ -171,6 +216,7 @@ def main():
     last = -1
     save('awaiting_qr', 'scan the QR code above with WhatsApp → Linked devices', n)
     qr_announced = False
+    sync_started_at = None
     while True:
         n = msg_count()
         paired = n > 0 or log_hint_paired()
@@ -181,23 +227,35 @@ def main():
             if time.time() - t0 > 1800:
                 save('error', 'no pairing after 30 min — a fresh QR is shown above')
                 return
-            time.sleep(10)
+            time.sleep(AWAITING_QR_POLL_S)
             continue
+        # Scan event: stamp the pairing moment once. The UI holds the
+        # dedicated syncing screen for SYNC_MIN_HOLD_S from this stamp
+        # even when sync itself finishes early.
+        if sync_started_at is None:
+            sync_started_at = datetime.datetime.now(
+                datetime.timezone.utc).isoformat()
         if n == last and n > 0:
             stable += 1
         else:
             stable = 0
         last = n
-        save('syncing', f'history sync in progress — {n} messages so far', n)
+        save('syncing', f'history sync in progress — {n} messages so far',
+             n, extra={'sync_started_at': sync_started_at})
         if stable >= STABLE_POLLS:
             break
         time.sleep(STABLE_GAP)
 
-    save('analyzing', ensure_themes() + f' — running analysis over {n} messages', n)
+    sync_extra = {'sync_started_at': sync_started_at} \
+        if sync_started_at else None
+    save('analyzing', ensure_themes() + f' — running analysis over {n} messages',
+         n, extra=sync_extra)
     if run_build():
-        save('ready', f'live with {n} messages synced', n)
+        save('ready', f'live with {n} messages synced', n,
+             extra=sync_extra)
     else:
-        save('error', 'analysis failed — see rebuild.log, retry via /api/rebuild')
+        save('error', 'analysis failed — see rebuild.log, retry via /api/rebuild',
+             n, extra=sync_extra)
 
 
 if __name__ == '__main__':

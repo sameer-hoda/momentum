@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Atlas Nudges Tab — OLD vs NEW · Momentum Showcase</title>
+<style>
+  :root { --font-ui:'Inter',system-ui,sans-serif; --font-serif:'Instrument Serif',Georgia,serif; --font-mono:'JetBrains Mono',ui-monospace,monospace;
+    --hue-1:262; --hue-2:222; --ease-spring:cubic-bezier(.22,1,.36,1); --ease-out:cubic-bezier(.16,1,.3,1); }
+  .light { --bg:#f7f7f5; --bg-elev:#fff; --bg-sunken:#f0efec; --bg-inset:#e9e8e4; --border:#e7e5e0; --border-soft:#f0eeea;
+    --text-1:#1c1917; --text-2:#57534e; --text-3:#a29d97; --text-4:#d6d3cd;
+    --accent:hsl(var(--hue-1) 70% 52%); --accent-soft:hsl(var(--hue-1) 70% 52% / .09);
+    --card-shadow:0 1px 2px rgba(28,25,23,.04),0 4px 16px -4px rgba(28,25,23,.05);
+    --glass:rgba(255,255,255,.82); --aurora-opacity:.5; }
+  .dark { --bg:#09090c; --bg-elev:#121217; --bg-sunken:#0e0e13; --bg-inset:#17171d;
+    --border:#24242b; --border-soft:#1b1b21; --text-1:#f4f4f5; --text-2:#a1a1aa; --text-3:#5b5b66; --text-4:#3f3f49;
+    --accent:hsl(var(--hue-1) 85% 68%); --accent-soft:hsl(var(--hue-1) 85% 68% / .13);
+    --card-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 4px 16px -4px rgba(0,0,0,.45);
+    --glass:rgba(15,15,19,.82); --aurora-opacity:.42; }
+  * { font-family:var(--font-ui); -webkit-font-smoothing:antialiased; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text-1); margin:0; min-height:100vh; transition:background .4s; }
+  .mono{font-family:var(--font-mono);} .serif-accent{font-family:var(--font-serif);font-style:italic;}
+  .sec-label{font-size:10px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2);}
+  .card{background:var(--bg-elev);border:1px solid var(--border);border-radius:16px;box-shadow:var(--card-shadow);overflow:hidden;}
+  /* seg control — copied verbatim from index.html */
+  .seg{position:relative;display:inline-flex;gap:2px;padding:3.5px;border-radius:12px;background:var(--bg-sunken);border:1px solid var(--border-soft);}
+  .seg-indicator{position:absolute;top:3.5px;left:0;height:calc(100% - 7px);border-radius:9px;background:var(--bg-elev);
+    border:1px solid var(--border);box-shadow:var(--card-shadow);transition:transform .45s var(--ease-spring),width .45s var(--ease-spring);z-index:0;}
+  .seg-tab{position:relative;z-index:1;font-size:11px;font-weight:500;padding:4.5px 11px;border-radius:9px;cursor:pointer;
+    color:var(--text-3);transition:color .25s;user-select:none;display:flex;align-items:center;gap:6px;}
+  .seg-tab.active{color:var(--text-1);}
+  .chip{font-size:10.5px;font-weight:500;padding:2.5px 9px;border-radius:99px;display:inline-flex;align-items:center;gap:5px;}
+  .pill-mini{--pc:hsl(var(--hue-1) 75% 55%);font-size:12px;font-weight:650;padding:7px 14px;border-radius:99px;cursor:pointer;
+    color:color-mix(in srgb,var(--pc) 72%,var(--text-1));background:color-mix(in srgb,var(--pc) 9%,transparent);border:1px solid color-mix(in srgb,var(--pc) 34%,transparent);
+    transition:all .25s var(--ease-spring);}
+  .pill-mini:hover{transform:translateY(-1px);background:color-mix(in srgb,var(--pc) 15%,transparent);}
+  .an-row{position:relative;border:1px solid var(--border);border-radius:12px;background:var(--bg-sunken);
+    padding:9px 12px 10px 15px;overflow:hidden;}
+  .an-row::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--ac,var(--text-4));}
+  .c-head{display:flex;align-items:baseline;gap:10px;margin:12px 0 8px;padding:0 2px;}
+  .c-name{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--text-2);}
+  .c-sub{font-family:var(--font-serif);font-style:italic;font-size:13px;color:var(--text-3);}
+  .c-count{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--text-4);}
+  .watch{border:1px dashed var(--border);border-radius:12px;background:transparent;padding:9px 12px;display:flex;gap:10px;align-items:center;font-size:12.5px;color:var(--text-2);}
+  .tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    padding:3px 10px;border-radius:99px;border:1px solid var(--border);}
+  .tag.old{color:var(--text-3);} .tag.new{color:#10b981;border-color:#10b98155;background:#10b98111;}
+  .tgl{position:fixed;top:14px;right:14px;z-index:50;display:flex;gap:6px;background:var(--glass);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:99px;padding:4px;}
+  .tgl button{border:none;background:transparent;color:var(--text-3);font-size:12px;font-weight:600;padding:6px 14px;border-radius:99px;cursor:pointer;}
+  .tgl button.on{background:var(--text-1);color:var(--bg);}
+  .check{border-top:1px solid var(--border-soft);margin-top:18px;padding:14px 4px 30px;display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--text-3);}
+  .check b{color:#10b981;}
+  .legend-swatch{width:11px;height:11px;border-radius:3px;display:inline-block;border:1px solid rgba(0,0,0,.12);}
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important;}}
+</style>
+</head>
+<body class="light">
+<div class="tgl"><button id="bL" class="on" onclick="setT('light')">Light</button><button id="bD" onclick="setT('dark')">Dark</button></div>
+
+<div style="max-width:760px;margin:0 auto;padding:56px 20px 0;">
+  <div class="mono" style="font-size:10.5px;letter-spacing:.12em;color:var(--text-3);text-transform:uppercase;">Momentum showcase · atlas-nudges-tab.html · OLD vs NEW</div>
+  <div class="serif-accent" style="font-size:24px;margin-top:6px;">Atlas Nudges tab, <span style="font-style:italic;">before approval.</span></div>
+  <div style="font-size:12.5px;color:var(--text-2);margin-top:4px;">No index.html touched. NEW is a clickable mock of the proposed tab: Map | Nudges seg on the Atlas header's right side, assistant voice, Tonight / Tomorrow / Watching, why-now + suggested move + one-tap actions, empty state.</div>
+
+  <!-- ================= OLD ================= -->
+  <div style="margin-top:26px;"><span class="tag old">OLD · current atlas header (verbatim)</span></div>
+  <div class="card" style="margin-top:10px;">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:16px 16px 0 20px;">
+      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;">
+        <div class="sec-label" style="margin-bottom:0">Atlas</div>
+        <span class="text-[10.5px] mono" style="font-size:10.5px;color:var(--text-3)">2 areas critical · 5 of 18 running hot</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);display:flex;align-items:center;gap:5px;"><span class="legend-swatch" style="background:#E7ECE7"></span>calm</span>
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);display:flex;align-items:center;gap:5px;"><span class="legend-swatch" style="background:#F6DFA0"></span>watch</span>
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);display:flex;align-items:center;gap:5px;"><span class="legend-swatch" style="background:#F2A46B"></span>elevated</span>
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);display:flex;align-items:center;gap:5px;"><span class="legend-swatch" style="background:#E4553F"></span>critical</span>
+      </div>
+    </div>
+    <div style="margin:10px 14px 6px;height:150px;border-radius:10px;background:var(--bg-sunken);border:1px solid var(--border-soft);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text-4);">[ heat treemap — unchanged ]</div>
+    <div style="font-size:9.5px;padding:0 16px 12px 20px;color:var(--text-4)">biggest tile = most going on · redder = needs you sooner · click a tile to open its threads</div>
+  </div>
+  <div class="mono" style="font-size:11px;color:var(--text-4);margin-top:8px;">OLD observation: nudges live only in the separate Nudges view (sidebar key 4). Command Center shows heat but no sendable actions.</div>
+
+  <!-- ================= NEW ================= -->
+  <div style="margin-top:30px;"><span class="tag new">NEW · proposed (click the tabs)</span></div>
+  <div class="card" style="margin-top:10px;">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:16px 16px 0 20px;">
+      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;">
+        <div class="sec-label" style="margin-bottom:0">Atlas</div>
+        <span class="mono" id="new-sentence" style="font-size:10.5px;color:var(--text-3)">2 areas critical · 5 of 18 running hot</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div class="seg" id="demoSeg">
+          <div class="seg-indicator" id="demoSegInd"></div>
+          <div class="seg-tab active" data-at="map" onclick="setDemoTab('map')">Map</div>
+          <div class="seg-tab" data-at="nudges" onclick="setDemoTab('nudges')">Nudges<span class="mono" style="font-size:9.5px;opacity:.75"> · 3</span></div>
+        </div>
+        <div id="demo-legend" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);display:flex;align-items:center;gap:5px;"><span class="legend-swatch" style="background:#E7ECE7"></span>calm</span>
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);display:flex;align-items:center;gap:5px;"><span class="legend-swatch" style="background:#E4553F"></span>critical</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="demo-map">
+      <div style="margin:10px 14px 6px;height:150px;border-radius:10px;background:var(--bg-sunken);border:1px solid var(--border-soft);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text-4);">[ heat treemap — unchanged ]</div>
+    </div>
+
+    <div id="demo-nudges" style="display:none;padding:4px 16px 6px 20px;">
+      <div style="font-size:16px;font-weight:650;letter-spacing:-.01em;margin-top:6px;">2 things <span class="serif-accent" style="font-weight:400;">I'd send tonight.</span></div>
+      <div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">Scanned the last 5 minutes · high bar — direct asks only.</div>
+
+      <div class="c-head"><span class="c-name">Tonight</span><span class="c-sub">before the day closes</span><span class="c-count">1</span></div>
+      <div class="an-row" style="--ac:#ef4444;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span class="chip" style="color:#ef4444;border:1px solid #ef444466;background:#ef44441a;">Asked you</span>
+          <span style="font-size:12px;font-weight:650;">Confirm the Saturday volunteer roster</span>
+          <span class="mono" style="font-size:10.5px;margin-left:auto;color:var(--text-4)">Family</span>
+        </div>
+        <div style="font-size:12px;margin-top:4px;color:var(--text-2)">Priya asked you 2h ago — no reply from you yet.</div>
+        <div style="font-size:11.5px;color:var(--text-3);">Suggested move: “Roster looks good — locking it in.”</div>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+          <button class="pill-mini" style="--pc:#ef4444" onclick="say('sent ✓ — dry-run')">Send nudge ✓</button>
+          <button class="pill-mini" style="--pc:#a8a29e" onclick="say('opening thread →')">Open thread →</button>
+          <button class="pill-mini" style="--pc:#a8a29e" onclick="say('snoozed 3d ✓')">Snooze 3d</button>
+        </div>
+      </div>
+
+      <div class="c-head"><span class="c-name">Tomorrow</span><span class="c-sub">lined up, not urgent</span><span class="c-count">1</span></div>
+      <div class="an-row" style="--ac:#8b5cf6;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span class="chip" style="color:#8b5cf6;border:1px solid #8b5cf666;background:#8b5cf61a;">Waiting on them</span>
+          <span style="font-size:12px;font-weight:650;">Reply to the venue coordinator</span>
+          <span class="mono" style="font-size:10.5px;margin-left:auto;color:var(--text-4)">Vendors</span>
+        </div>
+        <div style="font-size:12px;margin-top:4px;color:var(--text-2)">Waiting on Venue; fresh activity 1d ago (nudge #2).</div>
+        <div style="font-size:11.5px;color:var(--text-3);">Suggested move: “Saturday 4pm works — confirm it.”</div>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+          <button class="pill-mini" style="--pc:#8b5cf6" onclick="say('sent ✓ — dry-run')">Send nudge ✓</button>
+          <button class="pill-mini" style="--pc:#a8a29e" onclick="say('opening thread →')">Open thread →</button>
+          <button class="pill-mini" style="--pc:#a8a29e" onclick="say('snoozed 3d ✓')">Snooze 3d</button>
+        </div>
+      </div>
+
+      <div class="c-head"><span class="c-name">Watching</span><span class="c-sub">quiet unless they move</span><span class="c-count">1</span></div>
+      <div class="watch"><span style="width:8px;height:8px;border-radius:50%;background:#8b5cf6;flex-shrink:0;"></span><span>Decor vendor shortlist <span class="mono" style="font-size:10px;color:var(--text-4);">· waiting on Arun</span></span></div>
+
+      <div style="text-align:center;margin-top:10px;"><button class="pill-mini" style="--pc:#a8a29e" onclick="say('opening full Nudges view →')">Open full Nudges view →</button></div>
+    </div>
+
+    <div id="demo-empty" style="display:none;padding:22px 16px;text-align:center;">
+      <div style="font-size:15px;font-weight:650;">All caught up — nothing I would bug anyone about</div>
+      <div style="font-size:11.5px;color:var(--text-3);margin-top:4px;">High bar held — no direct asks, no fresh waiting-on activity.</div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap;">
+        <button class="pill-mini" style="--pc:hsl(var(--hue-1) 75% 55%)" onclick="say('rescanning…')">Rescan now</button>
+      </div>
+    </div>
+
+    <div style="font-size:9.5px;padding:8px 16px 12px 20px;color:var(--text-4)" id="demo-foot">biggest tile = most going on · redder = needs you sooner · click a tile to open its threads</div>
+  </div>
+  <div class="mono" style="font-size:11px;color:var(--text-4);margin-top:8px;">NEW behavior: same /api/nudges data as the Nudges view (no new endpoint); destructive = single primary pill, rest ghost; J/K/A/S keys live in the full view.</div>
+  <div style="margin-top:8px;"><button class="pill-mini" style="--pc:#a8a29e" onclick="toggleEmptyDemo()">Preview: empty state</button></div>
+
+  <div class="check mono">
+    <span><b>✓</b> contrast AA (12px+ copy on --bg-elev/--bg-sunken)</span>
+    <span><b>✓</b> 1-line CTA per card: "Send nudge ✓" primary, rest ghost pills</span>
+    <span><b>✓</b> reduced-motion: no pulse/ping in this surface</span>
+    <span><b>✓</b> high bar untouched: 5-min window, cap 7, same ranking</span>
+  </div>
+</div>
+<div id="t" class="mono" style="position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;background:var(--text-1);color:var(--bg);font-size:12px;padding:9px 18px;border-radius:99px;transition:all .3s;pointer-events:none;">sent</div>
+<script>
+function setT(t){document.body.className=t;document.getElementById('bL').classList.toggle('on',t==='light');document.getElementById('bD').classList.toggle('on',t==='dark');positionDemoSeg();}
+function say(m){const t=document.getElementById('t');t.textContent=m;t.style.opacity=1;t.style.transform='translateX(-50%) translateY(0)';clearTimeout(window._tt);window._tt=setTimeout(()=>{t.style.opacity=0;},1600);}
+function positionDemoSeg(){const seg=document.getElementById('demoSeg'),ind=document.getElementById('demoSegInd'),a=seg&&seg.querySelector('.seg-tab.active');if(!seg||!ind||!a)return;ind.style.width=a.offsetWidth+'px';ind.style.transform='translateX('+(a.offsetLeft-3.5)+'px)';}
+function setDemoTab(tab){
+  document.querySelectorAll('#demoSeg .seg-tab').forEach(el=>el.classList.toggle('active',el.dataset.at===tab));
+  positionDemoSeg();
+  const map=tab==='map';
+  document.getElementById('demo-map').style.display=map?'':'none';
+  const n=document.getElementById('demo-nudges'),e=document.getElementById('demo-empty');
+  if(map){n.style.display='none';e.style.display='none';}
+  else if(!window._demoEmpty){n.style.display='';e.style.display='none';}
+  else{n.style.display='none';e.style.display='';}
+  document.getElementById('demo-legend').style.display=map?'':'none';
+  document.getElementById('new-sentence').textContent=map?'2 areas critical · 5 of 18 running hot':'last 5 min · high bar — direct asks only';
+  document.getElementById('demo-foot').textContent=map?'biggest tile = most going on · redder = needs you sooner · click a tile to open its threads':'high bar — direct asks only · one tap to send, snooze, or close · full feed in the Nudges view';
+}
+function toggleEmptyDemo(){window._demoEmpty=!window._demoEmpty;setDemoTab(window._demoEmpty?'nudges':(document.querySelector('#demoSeg .seg-tab.active').dataset.at));if(window._demoEmpty){document.getElementById('demo-nudges').style.display='none';document.getElementById('demo-empty').style.display='';}say(window._demoEmpty?'empty state preview':'feed preview');}
+window.addEventListener('load',positionDemoSeg);
+window.addEventListener('resize',positionDemoSeg);
+</script>
+</body>
+</html>

@@ -35,12 +35,91 @@ def load_excluded():
                     excluded.add(line.lower())
     return excluded
 
+THEME_LABELS = {
+    'autopay': 'Autopay', 'upi': 'UPI', 'rupay': 'RuPay',
+    'wallet_ppi': 'Wallet', 'bbps': 'Bills', 'ccbp': 'CCBP',
+    'rewards': 'Rewards', 'branding': 'Brand', 'gtm_merchant': 'Merchants',
+    'growth_mtu': 'Growth', 'comms': 'Comms', 'p2p': 'P2P',
+    'revenue_subscription': 'Revenue', 'cred_pay': 'CRED Pay',
+    'bio_auth': 'Verification', 'win': 'Win', 'dms': 'DMs', 'people': 'People',
+    'ops': 'Ops', 'finance': 'Finance', 'chats': 'Chats', 'other': 'Other',
+}
+
+# Ordered first-match-wins. Plain tokens are substrings of the lowered
+# group name; 're:' tokens are regexes for short ambiguous words.
+THEME_RULES = [
+    ('dms', ['re:^[\\d\\s+\\-()]+$']),
+    ('win', ['re:\\bwin\\b']),
+    ('autopay', ['autopay', 'e-mandate', 'emandate', 'nach', 'si hub']),
+    ('upi', ['upi', 'token']),
+    ('rupay', ['rupay']),
+    ('wallet_ppi', ['wallet', 'ppi', 'gift card', 'giftcard']),
+    ('bbps', ['bbps', 'bill payment', 'electricity', 'dth', 'recharge', 'fastag']),
+    ('ccbp', ['ccbp', 'cbcc']),
+    ('rewards', ['reward', 'cashback', 'coin', 'jackpot', 'scratch']),
+    ('branding', ['brand', 're:\\bads\\b', 'advertisement', 'campaign', 'marketing', 'creative']),
+    ('gtm_merchant', ['merchant', 'gtm', 'soundbox', 'enterprise']),
+    ('growth_mtu', ['mtu', 'activation', 'retention', 'cross sell', 'cross-sell',
+                    'winback', 'win back', 'referral', 'okr', 'north star',
+                    're:\\b\\d{2}m\\b', 're:\\bcore\\b']),
+    ('comms', ['comms', 'sms', 'push', 'notification', 'otp', 'email', 'whatsapp']),
+    ('p2p', ['p2p']),
+    ('revenue_subscription', ['revenue', 'subscription', 'monet', 'arpu']),
+    ('cred_pay', ['cred pay', 'pay']),
+    ('bio_auth', ['kyc', 'bio', 'biometric', 'digilocker', 'verification', 'face id']),
+    ('people', ['hiring', 'interview', 'payroll', 'onboarding']),
+    ('ops', ['ops', 'launch', 'release', 'deploy', 'incident', 'outage',
+             'standup', 'stand-up', 'all hands', 'sprint', 'retro', 'action items',
+             'go-live', 'go live']),
+    ('finance', ['finance', 'invoice', 'legal', 're:\\bnda\\b', 'budget', 'procurement',
+                 'vendor', 'payout', 'settlement']),
+]
+
+
+def classify_group_theme(name):
+    """Keyword theme for a group name; 'other' when nothing matches."""
+    low = (name or '').lower()
+    for theme, tokens in THEME_RULES:
+        for tok in tokens:
+            if tok.startswith('re:'):
+                if re.search(tok[3:], low):
+                    return theme
+            elif tok in low:
+                return theme
+    return 'other'
+
+
+def is_auto_placeholder(data):
+    """True when theme_groups.json is still the first-run auto-map: every
+    group dumped into one 'chats' bucket. Classified properly instead."""
+    if not isinstance(data, dict) or set(data.keys()) != {'chats'}:
+        return False
+    try:
+        desc = (data['chats'].get('description') or '').lower()
+    except Exception:
+        return False
+    return 'auto-mapped' in desc
+
+
+def resolve_theme(gname, group_to_theme):
+    """Explicit custom mapping wins; otherwise classify; never empty."""
+    hit = (group_to_theme or {}).get((gname or '').strip().lower())
+    if hit:
+        return hit
+    return classify_group_theme(gname)
+
+
 def load_themes():
     with open(THEME_FILE) as f:
         data = json.load(f)
+    # Canonical labels first so classified themes always have board metadata;
+    # an explicit custom file overrides labels but never loses them.
+    theme_meta = {k: {'label': v, 'owner': ''}
+                  for k, v in THEME_LABELS.items()}
+    if is_auto_placeholder(data):
+        return {}, theme_meta
     # Build group_name -> theme_key mapping
     group_to_theme = {}
-    theme_meta = {}
     for key, val in data.items():
         theme_meta[key] = {'label': val['label'], 'owner': val.get('owner', '')}
         for g in val['groups']:
@@ -52,13 +131,14 @@ def extract_people(body):
     return sorted(set(re.findall(r'@(\w[\w.]{1,30})', body or '')))
 
 def extract_status(body, msg_count):
-    """Heuristic status detection."""
-    body_lower = body.lower()
-    if any(w in body_lower for w in ['blocked', 'blocking', 'stuck', 'issue', 'error', 'bug', 'broken']):
+    """Heuristic status detection (word-boundary matching — 'done' must
+    not fire inside 'undone', 'live' not inside 'deliver')."""
+    body = body or ''
+    if re.search(r'\b(blocked|blocking|stuck|issues?|errors?|bugs?|broken)\b', body, re.I):
         return 'blocked'
-    if any(w in body_lower for w in ['live', 'launched', 'went live', 'shipped', 'completed', 'done', 'achieved', 'closed']):
+    if re.search(r'\b(live|launched|went live|shipped|completed|done|achieved|closed)\b', body, re.I):
         return 'completed'
-    if any(w in body_lower for w in ['testing', 'working on', 'in progress', 'investigating', 'discussing', 'finalizing']):
+    if re.search(r'\b(testing|working on|in progress|investigating|discussing|finalizing)\b', body, re.I):
         return 'running'
     return 'running'
 
@@ -211,7 +291,7 @@ def main():
     theme_groups = {}
     for m in all_msgs:
         gname = (m['chat_name'] or '').strip()
-        theme_key = group_to_theme.get(gname.lower(), 'other')
+        theme_key = resolve_theme(gname, group_to_theme)
         if theme_key not in theme_groups:
             theme_groups[theme_key] = []
         theme_groups[theme_key].append(m)

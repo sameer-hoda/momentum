@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Journey Rail — Queue + Task · Momentum Showcase</title>
+<style>
+  /* Tokens copied from app/frontend/index.html :root + .light/.dark + .card/.chip/.pill */
+  :root { --font-ui:'Inter',system-ui,-apple-system,sans-serif; --font-serif:'Instrument Serif',Georgia,serif;
+    --font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --hue-1:262; --hue-2:222; --hue-3:190;
+    --ease-spring:cubic-bezier(.22,1,.36,1); --ease-out:cubic-bezier(.16,1,.3,1); }
+  .light { --bg:#f7f7f5; --bg-elev:#fff; --bg-sunken:#f0efec; --bg-inset:#e9e8e4; --border:#e7e5e0; --border-soft:#f0eeea;
+    --text-1:#1c1917; --text-2:#57534e; --text-3:#a29d97; --text-4:#d6d3cd;
+    --accent:hsl(var(--hue-1) 70% 52%); --accent-soft:hsl(var(--hue-1) 70% 52% / .09);
+    --card-shadow:0 1px 2px rgba(28,25,23,.04),0 4px 16px -4px rgba(28,25,23,.05);
+    --card-shadow-hover:0 2px 4px rgba(28,25,23,.06),0 16px 40px -12px rgba(28,25,23,.14);
+    --glass:rgba(255,255,255,.82); --aurora-opacity:.5; }
+  .dark { --bg:#09090c; --bg-elev:#121217; --bg-sunken:#0e0e13; --bg-inset:#17171d;
+    --border:#24242b; --border-soft:#1b1b21; --text-1:#f4f4f5; --text-2:#a1a1aa; --text-3:#5b5b66; --text-4:#3f3f49;
+    --accent:hsl(var(--hue-1) 85% 68%); --accent-soft:hsl(var(--hue-1) 85% 68% / .13);
+    --card-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 4px 16px -4px rgba(0,0,0,.45);
+    --card-shadow-hover:0 1px 0 rgba(255,255,255,.05) inset,0 20px 48px -12px rgba(0,0,0,.65);
+    --glass:rgba(15,15,19,.82); --aurora-opacity:.42; }
+  * { font-family:var(--font-ui); -webkit-font-smoothing:antialiased; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text-1); margin:0; min-height:100vh; transition:background .4s; }
+  .mono { font-family:var(--font-mono); font-feature-settings:'tnum'; font-variant-numeric:tabular-nums; }
+  .card { background:var(--bg-elev); border:1px solid var(--border); border-radius:16px; box-shadow:var(--card-shadow); }
+  .chip { font-size:10.5px; font-weight:500; padding:2.5px 9px; border-radius:99px; letter-spacing:.015em;
+    display:inline-flex; align-items:center; gap:5px; }
+  .chip-muted { background:var(--bg-sunken); color:var(--text-3); border:1px solid var(--border-soft); }
+  .pill-mini { --pc:hsl(var(--hue-1) 75% 55%); font-size:12px; font-weight:650; padding:7px 14px; border-radius:99px; cursor:pointer;
+    color:var(--accent); background:var(--accent-soft); border:1px solid color-mix(in srgb,var(--pc) 34%,transparent);
+    transition:all .25s var(--ease-spring); white-space:nowrap; }
+  .pill-mini:hover { transform:translateY(-1px); box-shadow:var(--card-shadow); }
+  .pill-mini:active { transform:scale(.96); }
+
+  .aurora { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden; }
+  .aurora i { position:absolute; border-radius:50%; filter:blur(100px); opacity:var(--aurora-opacity); }
+  .aurora .b1 { width:46vw; height:46vw; top:-18vw; right:-10vw;
+    background:radial-gradient(circle at 30% 30%,hsl(var(--hue-1) 80% 60%/.30),transparent 65%); }
+  .aurora .b2 { width:40vw; height:40vw; top:24vh; left:-16vw;
+    background:radial-gradient(circle at 60% 40%,hsl(var(--hue-2) 85% 58%/.22),transparent 65%); }
+  .aurora .b3 { width:34vw; height:34vw; bottom:-14vw; right:18vw;
+    background:radial-gradient(circle at 50% 50%,hsl(var(--hue-3) 80% 55%/.18),transparent 65%); }
+
+  .tgl { position:fixed; top:14px; right:14px; z-index:50; display:flex; gap:6px; background:var(--glass);
+    backdrop-filter:blur(12px); border:1px solid var(--border); border-radius:99px; padding:4px; }
+  .tgl button { border:none; background:transparent; color:var(--text-3); font-size:12px; font-weight:600;
+    padding:6px 14px; border-radius:99px; cursor:pointer; }
+  .tgl button.on { background:var(--text-1); color:var(--bg); }
+
+  .wrap { max-width:860px; margin:0 auto; padding:56px 22px 0; }
+  .kicker { font-family:var(--font-mono); font-size:10.5px; letter-spacing:.12em; color:var(--text-3); text-transform:uppercase; }
+  h1 { font-size:30px; letter-spacing:-.03em; margin:8px 0 4px; }
+  h1 .it { font-family:var(--font-serif); font-style:italic; font-weight:400; }
+  .lede { font-size:13.5px; color:var(--text-2); max-width:64ch; line-height:1.6; margin:0 0 20px; }
+
+  /* state switcher */
+  .switcher { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 18px; }
+  .sw-btn { font-size:12px; font-weight:600; padding:7px 14px; border-radius:99px; cursor:pointer;
+    border:1px solid var(--border); background:var(--bg-elev); color:var(--text-3);
+    transition:all .22s var(--ease-spring); }
+  .sw-btn:hover { color:var(--text-1); border-color:var(--text-4); transform:translateY(-1px); }
+  .sw-btn:active { transform:scale(.95); }
+  .sw-btn.on { background:var(--text-1); color:var(--bg); border-color:var(--text-1); }
+
+  /* journey rail */
+  .rail { overflow:hidden; position:relative; }
+  .rail-head { padding:20px 22px 16px; border-bottom:1px solid var(--border-soft); position:relative; }
+  .rail-head::before { content:''; position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(520px 160px at 10% -20%,hsl(var(--hue-1) 75% 55%/.10),transparent 62%); }
+  .rail-title { font-size:16px; font-weight:650; letter-spacing:-.01em; display:flex; align-items:center; gap:10px; }
+  .rail-count { margin-left:auto; font-family:var(--font-mono); font-size:12px; color:var(--text-2);
+    font-variant-numeric:tabular-nums; background:var(--bg-sunken); border:1px solid var(--border-soft);
+    padding:3px 11px; border-radius:99px; }
+  .rail-bar { height:8px; border-radius:99px; background:var(--bg-sunken); border:1px solid var(--border-soft);
+    overflow:hidden; margin-top:12px; }
+  .rail-fill { height:100%; width:0; border-radius:99px;
+    background:linear-gradient(90deg,hsl(var(--hue-1) 75% 55%),hsl(var(--hue-2) 80% 58%));
+    transition:width .7s var(--ease-spring); }
+  .rail-sub { display:flex; justify-content:space-between; margin-top:8px; font-size:11.5px; color:var(--text-3); }
+
+  .q-sec { border-top:1px solid var(--border-soft); }
+  .q-sec:first-of-type { border-top:none; }
+  .q-head { display:flex; align-items:center; gap:8px; padding:11px 22px; font-size:10.5px; font-weight:700;
+    letter-spacing:.09em; text-transform:uppercase; color:var(--text-2); cursor:pointer; user-select:none; }
+  .q-head .cnt { font-family:var(--font-mono); font-size:10px; font-weight:700; color:var(--text-3);
+    background:var(--bg-sunken); border:1px solid var(--border-soft); border-radius:99px; padding:1px 8px; }
+  .q-head .chev { margin-left:auto; color:var(--text-4); font-size:11px; transition:transform .3s var(--ease-spring); }
+  .q-sec.closed .chev { transform:rotate(-90deg); }
+  .q-sec.closed .q-body { display:none; }
+
+  /* TaskTrigger rows */
+  .trig { display:flex; align-items:center; gap:12px; padding:11px 22px; border-top:1px solid var(--border-soft);
+    cursor:pointer; transition:background .2s; position:relative; }
+  .trig:hover { background:color-mix(in srgb,var(--text-1) 3%,transparent); }
+  .trig.active { background:var(--accent-soft); }
+  .trig.active::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+    background:linear-gradient(180deg,hsl(var(--hue-1) 80% 58%),hsl(var(--hue-2) 85% 58%)); }
+  .st-ic { width:22px; height:22px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+  .dot-pending { width:9px; height:9px; border-radius:50%; background:var(--text-4); }
+  .dot-run { width:10px; height:10px; border-radius:50%; background:var(--accent); position:relative; }
+  .dot-run::after { content:''; position:absolute; inset:-4px; border-radius:50%;
+    border:1.5px solid var(--accent); opacity:.6; animation:ping 1.8s var(--ease-out) infinite; }
+  @keyframes ping { 0%{transform:scale(.55);opacity:.8} 80%,100%{transform:scale(1.5);opacity:0} }
+  .trig-title { font-size:13px; font-weight:600; color:var(--text-1); }
+  .trig-sub { font-size:11.5px; color:var(--text-3); margin-top:1px; }
+  .trig .elapsed { margin-left:auto; font-family:var(--font-mono); font-size:10.5px; color:var(--text-4);
+    font-variant-numeric:tabular-nums; flex-shrink:0; }
+
+  /* TaskContent */
+  .task-content { margin:0 22px 16px 56px; border:1px solid var(--border); border-radius:13px;
+    background:var(--bg-sunken); padding:16px 18px; }
+  .tc-label { font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--text-3); margin-bottom:10px; }
+  .qr-grid { display:grid; grid-template-columns:132px 1fr; gap:16px; align-items:center; }
+  .qr-fake { width:132px; height:132px; border-radius:10px; background:var(--bg-elev); border:1px solid var(--border);
+    display:grid; grid-template-columns:repeat(9,1fr); grid-template-rows:repeat(9,1fr); gap:1.5px; padding:10px; }
+  .qr-fake i { border-radius:1px; background:transparent; }
+  .qr-fake i.f { background:var(--text-1); }
+  .countdown { font-family:var(--font-mono); font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .sync-nums { display:flex; gap:22px; margin-bottom:10px; }
+  .sync-nums .n { font-family:var(--font-mono); font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .sync-nums .l { font-size:10px; font-weight:650; letter-spacing:.07em; text-transform:uppercase; color:var(--text-3); }
+  .mini-bar { height:7px; border-radius:99px; background:var(--bg-inset); overflow:hidden; margin:4px 0 10px; }
+  .mini-fill { height:100%; border-radius:99px; background:linear-gradient(90deg,hsl(var(--hue-1) 75% 55%),hsl(var(--hue-3) 70% 50%));
+    transition:width .5s var(--ease-out); }
+  .ckpt { display:flex; gap:6px; flex-wrap:wrap; }
+  .ckpt .chip.done { background:hsl(158 65% 42%/.1); color:hsl(158 65% 34%); }
+  .dark .ckpt .chip.done { background:hsl(158 65% 45%/.15); color:hsl(158 70% 62%); }
+  .hb { display:flex; align-items:center; gap:9px; font-family:var(--font-mono); font-size:11.5px; color:var(--text-2);
+    padding:6px 0; border-bottom:1px dashed var(--border-soft); }
+  .hb:last-child { border-bottom:none; }
+  .hb .ok { color:#10b981; font-weight:700; }
+  .err-card { border:1px solid rgba(239,68,68,.35); background:rgba(239,68,68,.07); border-radius:11px; padding:13px 14px; }
+  .err-cause { font-size:13px; font-weight:650; color:#dc2626; }
+  .dark .err-cause { color:#f87171; }
+  .err-fix { font-size:12.5px; color:var(--text-2); margin-top:5px; line-height:1.55; }
+  .trace { font-family:var(--font-mono); font-size:10.5px; line-height:1.6; color:var(--text-2);
+    background:var(--bg-inset); border-radius:8px; padding:10px 12px; margin-top:10px; overflow-x:auto; white-space:pre; }
+  .stall-callout { border:1px solid rgba(245,158,11,.4); background:rgba(245,158,11,.08); border-radius:11px;
+    padding:11px 14px; font-size:12.5px; color:var(--text-2); line-height:1.55; margin-top:10px; }
+  .ready-hero { text-align:center; padding:26px 10px 20px; }
+  .ready-hero .big { font-family:var(--font-serif); font-style:italic; font-size:26px; letter-spacing:-.01em; }
+  .check-list { border-top:1px solid var(--border-soft); margin-top:26px; padding:14px 4px 30px;
+    display:flex; gap:16px; flex-wrap:wrap; font-size:11.5px; color:var(--text-3); }
+  .check-list b { color:#10b981; }
+  @media (max-width:640px){ .qr-grid{grid-template-columns:1fr;} .task-content{margin-left:22px;} h1{font-size:24px;} }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after { animation-duration:.01ms !important; transition-duration:.01ms !important; }
+    .dot-run::after { display:none; } }
+</style>
+</head>
+<body class="light">
+<div class="aurora"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>
+<div class="tgl"><button id="bL" class="on" onclick="setT('light')">Light</button><button id="bD" onclick="setT('dark')">Dark</button></div>
+
+<div class="wrap">
+  <div class="kicker">Momentum showcase · journey-rail.html</div>
+  <h1>Getting ready, <span class="it">out in the open.</span></h1>
+  <p class="lede">The boot rail narrates every gate — Queue sections for Done / Todo / Queued, each step a TaskTrigger with live TaskContent. Nothing stalls silently: every hang gets a named cause, an exact fix, and an elapsed clock.</p>
+
+  <div class="switcher" id="switcher" role="tablist" aria-label="Preview journey states"></div>
+
+  <div class="card rail" id="rail" aria-live="polite"></div>
+
+  <div class="check-list">
+    <span><b>✓</b> Contrast AA body text</span>
+    <span><b>✓</b> Reduced-motion honored</span>
+    <span><b>✓</b> Mono tabular counts</span>
+    <span><b>✓</b> Zero external deps</span>
+    <span><b>✓</b> Sample data only, zero PII</span>
+  </div>
+</div>
+
+<script>
+function setT(m){ document.body.className = m;
+  document.getElementById('bL').classList.toggle('on', m==='light');
+  document.getElementById('bD').classList.toggle('on', m==='dark'); }
+
+/* Sample data only — zero PII. 6 gates G0..G5 + board moment. */
+var STEPS = [
+  { id:'services', title:'Start services',   hint:'bridge + api processes alive' },
+  { id:'account',  title:'Sign in',           hint:'valid session cookie' },
+  { id:'key',      title:'Connect AI key',    hint:'fresh-process ping · AI mode' },
+  { id:'pair',     title:'Pair WhatsApp',     hint:'scan code · refreshes every 20s' },
+  { id:'sync',     title:'Sync chats',        hint:'stable polls · per-1000 checkpoints' },
+  { id:'analyze',  title:'Analyze workspace', hint:'heartbeat supervised · real tracebacks' }
+];
+var QR = '11010100101110010111001010100111010010101110011010100101110010111001010100111010010101110011010100101110010111001010100111010010101110011010100101110010111001010100111010010101110011010100101110010111001010';
+
+var SCEN = {
+  pairing:   { label:'Pairing',   done:3, active:'pair',    err:null, stall:false, ready:false },
+  syncing:   { label:'Syncing',   done:4, active:'sync',    err:null, stall:false, ready:false },
+  analyzing: { label:'Analyzing', done:5, active:'analyze', err:null, stall:false, ready:false },
+  stalled:   { label:'Stalled',   done:4, active:'sync',    err:null, stall:true,  ready:false },
+  failed:    { label:'Failed',    done:5, active:'analyze', err:{ cause:'build_data crashed: empty OWNER_NAME on 2 threads',
+                fix:'Patch ships in the next sync — or tap Retry to re-run supervised with the regression guard.',
+                trace:'Traceback (most recent call last):\n  File "app/build_data.py", line 812, in build_task\n    owner = thread["owner_name"].strip()\nAttributeError: \'NoneType\' object has no attribute \'strip\'' },
+              stall:false, ready:false },
+  ready:     { label:'Ready',     done:6, active:null,      err:null, stall:false, ready:true }
+};
+var cur = 'pairing';
+var tick = { count:1247, rate:38, cd:20, hb:0 };
+
+function icon(st){
+  if (st==='completed') return '<span class="st-ic"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#10b981"/><path d="M5 8.2l2 2 4-4.4" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+  if (st==='in_progress') return '<span class="st-ic"><span class="dot-run"></span></span>';
+  if (st==='error') return '<span class="st-ic"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#ef4444"/><path d="M8 4.5v4M8 11.2v.3" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></span>';
+  return '<span class="st-ic"><span class="dot-pending"></span></span>';
+}
+function statusOf(i, s){
+  if (i < s.done) return 'completed';
+  if (s.ready) return 'completed';
+  if (STEPS[i].id === s.active) return s.err ? 'error' : 'in_progress';
+  return 'pending';
+}
+function elapsed(i, s){
+  var base = [4, 11, 9, 47, 96, 121][i] || 0;
+  if (STEPS[i].id === s.active && !s.ready) base += tick.hb;
+  if (base < 60) return base + 's';
+  return Math.floor(base/60) + 'm ' + (base%60) + 's';
+}
+
+function contentFor(step, s){
+  if (step !== s.active || s.ready) return '';
+  var inner = '';
+  if (step === 'pair'){
+    var cells = '';
+    for (var k = 0; k < 81; k++) cells += '<i class="' + (QR[k % QR.length] === '1' ? 'f' : '') + '"></i>';
+    inner = '<div class="tc-label">TaskContent · live QR — code refreshes automatically</div>' +
+      '<div class="qr-grid"><div class="qr-fake" role="img" aria-label="Sample pairing code">' + cells + '</div>' +
+      '<div><div class="countdown mono" id="cd">0:' + String(tick.cd).padStart(2,'0') + '</div>' +
+      '<div style="font-size:12px;color:var(--text-2);margin-top:4px;">until refresh · age <span class="mono" id="qrage">3s</span></div>' +
+      '<div style="font-size:12.5px;color:var(--text-2);margin-top:8px;line-height:1.55;">Scan with WhatsApp → Settings → Linked devices. Detection: inbox count &gt; 0 <em>or</em> bridge “connected” hint.</div></div></div>';
+  } else if (step === 'sync'){
+    var pct = Math.min(96, Math.round(tick.count / 42));
+    var cps = [1000, 2000, 3000].map(function(c){
+      return '<span class="chip ' + (tick.count >= c ? 'done' : 'chip-muted') + ' mono">' + (c/1000) + 'k' + (tick.count >= c ? ' ✓' : '') + '</span>';
+    }).join('');
+    inner = '<div class="tc-label">TaskContent · live sync</div>' +
+      '<div class="sync-nums"><div><div class="n mono" id="syncCount">' + tick.count.toLocaleString() + '</div><div class="l">messages</div></div>' +
+      '<div><div class="n mono">' + tick.rate + '/s</div><div class="l">rate</div></div>' +
+      '<div><div class="n mono" id="syncElapsed">' + elapsed(4, s) + '</div><div class="l">elapsed</div></div></div>' +
+      '<div class="mini-bar"><div class="mini-fill" style="width:' + pct + '%"></div></div>' +
+      '<div class="ckpt">' + cps + '<span class="chip chip-muted">3 stable 15s polls to gate</span></div>' +
+      (s.stall ? '<div class="stall-callout"><b style="color:#d97706">Stalled 64s</b> — cause: phone may be asleep. Fix: keep WhatsApp open and the phone awake; polls resume on their own. <button class="pill-mini" style="margin-left:8px" onclick="retry(this)">Retry</button></div>' : '');
+  } else if (step === 'analyze'){
+    if (s.err){
+      inner = '<div class="tc-label">TaskContent · failed with cause + fix</div>' +
+        '<div class="err-card"><div class="err-cause">✕ ' + s.err.cause + '</div>' +
+        '<div class="err-fix">' + s.err.fix + '</div>' +
+        '<div class="trace">' + s.err.trace + '</div>' +
+        '<div style="margin-top:10px;display:flex;gap:8px;"><button class="pill-mini" onclick="retry(this)">Retry build</button>' +
+        '<span class="chip chip-muted mono">watchdog: restarted 1×, then surfaced</span></div></div>';
+    } else {
+      inner = '<div class="tc-label">TaskContent · supervised build heartbeat</div>' +
+        '<div class="hb"><span class="ok">●</span> heartbeat <span style="margin-left:auto" class="mono" id="hbAge">' + tick.hb + 's ago</span></div>' +
+        '<div class="hb">threads scanned <span style="margin-left:auto" class="mono" id="thCount">312</span></div>' +
+        '<div class="hb">tasks drafted <span style="margin-left:auto" class="mono">48</span></div>' +
+        '<div style="font-size:12px;color:var(--text-3);margin-top:8px;">Watchdog restarts once on 5-min silence, then shows the real traceback — never “check deploy logs”.</div>';
+    }
+  }
+  return '<div class="task-content">' + inner + '</div>';
+}
+
+function render(){
+  var s = SCEN[cur];
+  var sw = document.getElementById('switcher');
+  sw.innerHTML = Object.keys(SCEN).map(function(k){
+    return '<button class="sw-btn' + (k===cur ? ' on' : '') + '" role="tab" onclick="go(\'' + k + '\')">' + SCEN[k].label + '</button>';
+  }).join('');
+
+  var doneSteps = STEPS.map(function(st, i){ return { st:st, i:i }; }).filter(function(o){ return statusOf(o.i, s) === 'completed'; });
+  var todoSteps = STEPS.map(function(st, i){ return { st:st, i:i }; }).filter(function(o){ return statusOf(o.i, s) !== 'completed' && statusOf(o.i, s) !== 'pending'; });
+  var queuedSteps = STEPS.map(function(st, i){ return { st:st, i:i }; }).filter(function(o){ return statusOf(o.i, s) === 'pending'; });
+  var n = s.ready ? 6 : s.done;
+  var pct = Math.round(n / 6 * 100);
+
+  function row(o){
+    var st = statusOf(o.i, s);
+    var isA = STEPS[o.i].id === s.active && !s.ready;
+    var cause = st === 'error' ? ' · ' + s.err.cause : '';
+    return '<div class="trig' + (isA ? ' active' : '') + '">' + icon(st) +
+      '<div><div class="trig-title">' + o.st.title + '</div>' +
+      '<div class="trig-sub mono">G' + o.i + ' · ' + o.st.hint + cause + '</div></div>' +
+      '<span class="elapsed">' + elapsed(o.i, s) + '</span></div>' +
+      contentFor(o.st.id, s);
+  }
+
+  var h = '<div class="rail-head"><div class="rail-title">Getting your workspace ready' +
+    '<span class="rail-count mono">' + n + '/6 steps</span></div>' +
+    '<div class="rail-bar"><div class="rail-fill" style="width:' + pct + '%"></div></div>' +
+    '<div class="rail-sub"><span>' + (s.ready ? 'All gates passing — board is live.' : 'Gate G' + (s.ready ? 6 : s.done) + ' next · no step runs before its inputs') + '</span><span class="mono">' + pct + '%</span></div></div>';
+
+  if (s.ready){
+    h += '<div class="ready-hero"><div class="big">Workspace is ready.</div>' +
+      '<div style="font-size:13px;color:var(--text-2);margin:6px 0 14px;">6/6 gates passing · <span class="mono">48</span> tasks · <span class="mono">312</span> threads</div>' +
+      '<button class="pill-mini">Open board</button></div>';
+  }
+  h += '<div class="q-sec" id="secDone"><div class="q-head" onclick="document.getElementById(\'secDone\').classList.toggle(\'closed\')">Done <span class="cnt mono">' + doneSteps.length + '</span><span class="chev">▾</span></div><div class="q-body">' +
+    (doneSteps.map(row).join('') || '<div style="padding:0 22px 12px;font-size:12.5px;color:var(--text-3)">Nothing finished yet.</div>') + '</div></div>';
+  if (!s.ready){
+    h += '<div class="q-sec"><div class="q-head">Todo · active <span class="cnt mono">' + todoSteps.length + '</span></div><div class="q-body">' + todoSteps.map(row).join('') + '</div></div>' +
+      '<div class="q-sec"><div class="q-head">Queued · upcoming <span class="cnt mono">' + queuedSteps.length + '</span></div><div class="q-body">' + queuedSteps.map(row).join('') + '</div></div>';
+  }
+  document.getElementById('rail').innerHTML = h;
+}
+function go(k){ cur = k; tick.cd = 20; render(); }
+function retry(btn){ btn.textContent = 'Retrying…'; btn.disabled = true;
+  setTimeout(function(){ btn.textContent = 'Retry'; btn.disabled = false; }, 1600); }
+
+setInterval(function(){
+  var s = SCEN[cur];
+  tick.hb++;
+  if (s.active === 'pair' && !s.ready){ tick.cd--; if (tick.cd < 0) tick.cd = 20;
+    var cd = document.getElementById('cd'); if (cd) cd.textContent = '0:' + String(tick.cd).padStart(2,'0');
+    var qa = document.getElementById('qrage'); if (qa) qa.textContent = (20 - tick.cd) + 's'; }
+  if (s.active === 'sync' && !s.stall && !s.ready){ tick.count += Math.round(18 + Math.random() * 40); tick.rate = 24 + Math.round(Math.random() * 28);
+    var sc = document.getElementById('syncCount'); if (sc) sc.textContent = tick.count.toLocaleString(); }
+  var hb = document.getElementById('hbAge'); if (hb && tick.hb % 30 === 0) hb.textContent = '0s ago';
+}, 1000);
+
+render();
+</script>
+</body>
+</html>

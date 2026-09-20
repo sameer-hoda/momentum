@@ -14,3 +14,8 @@ provision_run.log
 sent_log.jsonl
 frontend_data.json
 pipeline_state.json
+local-store/
+local-run/wabridge
+local-run/store
+local-run/*.pid
+local-run/*.out.log
